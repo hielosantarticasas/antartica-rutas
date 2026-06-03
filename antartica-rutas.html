@@ -494,6 +494,14 @@
 <div class="screen" id="screen-gerencial">
   <div class="section-title">GERENCIAL</div>
   <div class="section-sub" id="gerencial-fecha"></div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchGerencial('g-hoy')" id="gtab-hoy">📊 Hoy</button>
+    <button class="tab" onclick="switchGerencial('g-historial')" id="gtab-historial">📅 Historial</button>
+  </div>
+
+  <!-- GERENCIAL HOY -->
+  <div id="g-hoy">
   <div class="stats-grid">
     <div class="stat-box"><div class="stat-label">Ventas Totales</div><div class="stat-value cyan" id="g-ventas-total">$0</div></div>
     <div class="stat-box"><div class="stat-label">Rutas Activas</div><div class="stat-value dark" id="g-rutas-activas">0</div></div>
@@ -514,7 +522,83 @@
     <div class="card-title">RUTAS DEL DÍA</div>
     <div id="g-lista-rutas"><div class="empty" style="padding:20px 0;">Sin rutas</div></div>
   </div>
+  </div>
+
+  <!-- GERENCIAL HISTORIAL -->
+  <div id="g-historial" style="display:none;">
+  <div class="card">
+    <div class="card-title">SELECCIONAR FECHA</div>
+    <input type="date" id="hist-fecha" style="margin-bottom:12px;">
+    <button class="btn btn-primary" onclick="cargarHistorial()">🔍 CONSULTAR</button>
+  </div>
+  <div id="hist-resumen" style="display:none;">
+    <div class="stats-grid">
+      <div class="stat-box"><div class="stat-label">Total Ventas</div><div class="stat-value cyan" id="hist-total">$0</div></div>
+      <div class="stat-box"><div class="stat-label">Rutas</div><div class="stat-value dark" id="hist-num-rutas">0</div></div>
+      <div class="stat-box"><div class="stat-label">Efectivo</div><div class="stat-value green" id="hist-efectivo">$0</div></div>
+      <div class="stat-box"><div class="stat-label">Fiados</div><div class="stat-value yellow" id="hist-fiados">$0</div></div>
+      <div class="stat-box"><div class="stat-label">Bolsas 20kg</div><div class="stat-value cyan" id="hist-b20">0</div></div>
+      <div class="stat-box"><div class="stat-label">Bolsas 10kg</div><div class="stat-value cyan" id="hist-b10">0</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">POR CONDUCTOR</div>
+      <div id="hist-conductores"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">VENTAS POR PRECIO (DÍA)</div>
+      <div id="hist-precios"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">CLIENTES CON FIADO</div>
+      <div id="hist-fiados-lista"></div>
+    </div>
+  </div>
+  <div id="hist-empty" style="display:none;" class="empty">
+    <div class="empty-icon">📅</div>Sin rutas ese día.
+  </div>
+  </div>
+
   <button class="btn btn-outline" onclick="showScreen('screen-inicio')">← VOLVER</button>
+</div>
+
+<!-- HISTORIAL -->
+<div class="screen" id="screen-historial">
+  <div class="section-title">HISTORIAL</div>
+  <div class="section-sub">Consulta cualquier día anterior</div>
+  <div class="card">
+    <div class="card-title">SELECCIONAR FECHA</div>
+    <input type="date" id="hist-fecha" style="margin-bottom:12px;">
+    <button class="btn btn-primary" onclick="cargarHistorial()">🔍 CONSULTAR</button>
+  </div>
+  <div id="hist-resumen" style="display:none;">
+    <div class="stats-grid">
+      <div class="stat-box"><div class="stat-label">Total Ventas</div><div class="stat-value cyan" id="hist-total">$0</div></div>
+      <div class="stat-box"><div class="stat-label">Rutas</div><div class="stat-value dark" id="hist-num-rutas">0</div></div>
+      <div class="stat-box"><div class="stat-label">Efectivo</div><div class="stat-value green" id="hist-efectivo">$0</div></div>
+      <div class="stat-box"><div class="stat-label">Fiados</div><div class="stat-value yellow" id="hist-fiados">$0</div></div>
+      <div class="stat-box"><div class="stat-label">Bolsas 20kg</div><div class="stat-value cyan" id="hist-b20">0</div></div>
+      <div class="stat-box"><div class="stat-label">Bolsas 10kg</div><div class="stat-value cyan" id="hist-b10">0</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">RUTAS DEL DÍA</div>
+      <div id="hist-rutas-lista"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">VENTAS DEL DÍA</div>
+      <div id="hist-ventas-lista"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">VENTAS POR PRECIO</div>
+      <div id="hist-precios"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">CLIENTES CON FIADO</div>
+      <div id="hist-fiados-lista"></div>
+    </div>
+  </div>
+  <div id="hist-empty" style="display:none;" class="empty">
+    <div class="empty-icon">📅</div>Sin rutas ese día.
+  </div>
 </div>
 
 <nav class="bottom-nav">
@@ -558,7 +642,10 @@ let pagoSeleccionado = 'efectivo';
 // ===== UTILS =====
 function fmt(n){return '$'+Number(n||0).toLocaleString('es-CO');}
 function hoy(){return new Date().toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'});}
-function fechaCorta(){return new Date().toLocaleDateString('es-CO');}
+function fechaCorta(){
+  const d=new Date();
+  return d.getFullYear()+'-'+(String(d.getMonth()+1).padStart(2,'0'))+'-'+(String(d.getDate()).padStart(2,'0'));
+}
 function showLoading(msg='Guardando...'){document.getElementById('loadingText').textContent=msg;document.getElementById('loadingOverlay').classList.remove('hidden');}
 function hideLoading(){document.getElementById('loadingOverlay').classList.add('hidden');}
 function showToast(msg,dur=2500){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
@@ -581,10 +668,10 @@ function navTo(id){
   showScreen(id);
 }
 function switchTab(tab){
-  ['tab-recargue','tab-ventas','tab-gastos','tab-cartera-ruta','tab-resumen'].forEach(t=>document.getElementById(t).style.display='none');
-  ['tab-btn-recargue','tab-btn-ventas','tab-btn-gastos','tab-btn-cartera-ruta','tab-btn-resumen'].forEach(b=>document.getElementById(b).classList.remove('active'));
-  document.getElementById(tab).style.display='block';
-  document.getElementById('tab-btn-'+tab.replace('tab-','')).classList.add('active');
+  ['tab-recargue','tab-ventas','tab-gastos','tab-cartera-ruta','tab-resumen'].forEach(t=>{const el=document.getElementById(t);if(el)el.style.display='none';});
+  ['tab-btn-recargue','tab-btn-ventas','tab-btn-gastos','tab-btn-cartera-ruta','tab-btn-resumen'].forEach(b=>{const el=document.getElementById(b);if(el)el.classList.remove('active');});
+  const tabEl=document.getElementById(tab);if(tabEl)tabEl.style.display='block';
+  const btnEl=document.getElementById('tab-btn-'+tab.replace('tab-',''));if(btnEl)btnEl.classList.add('active');
   if(tab==='tab-resumen')cargarResumen();
   if(tab==='tab-cartera-ruta')cargarCobrosRuta();
   if(tab==='tab-recargue')cargarRecargues();
@@ -635,15 +722,21 @@ function renderListadoRutas(rutas){
   const lista=document.getElementById('listadoRutas');
   if(!rutas.length){lista.innerHTML='<div class="empty"><div class="empty-icon">🚛</div>No hay rutas creadas hoy.</div>';return;}
   lista.innerHTML=rutas.map(r=>`
-    <div class="ruta-card" onclick="abrirRuta('${r.id}')">
-      <div class="ruta-header">
+    <div class="ruta-card">
+      <div class="ruta-header" onclick="abrirRuta('${r.id}')">
         <div class="ruta-nombre">${r.conductor}</div>
         <div class="ruta-status ${r.estado==='activa'?'status-activa':'status-cerrada'}">${r.estado==='activa'?'EN RUTA':'CERRADA'}</div>
       </div>
-      <div class="ruta-info">${r.vehiculo||'—'} · ${r.estado}</div>
-      <div class="ruta-total" id="total-ruta-${r.id}">Cargando...</div>
+      <div class="ruta-info" onclick="abrirRuta('${r.id}')">${r.vehiculo||'—'} · ${r.estado}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+        <div class="ruta-total" id="total-ruta-${r.id}">Cargando...</div>
+        <button onclick="eliminarRutaConClave('${r.id}','${r.conductor}')"
+          style="background:none;border:1px solid rgba(204,34,51,.3);color:var(--danger);
+          border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;">
+          🗑 Eliminar
+        </button>
+      </div>
     </div>`).join('');
-  // Cargar totales
   rutas.forEach(async r=>{
     try{
       const ventas=await sbGet('ventas',`ruta_id=eq.${r.id}&select=precio`);
@@ -652,6 +745,32 @@ function renderListadoRutas(rutas){
       if(el)el.textContent=fmt(total);
     }catch(e){}
   });
+}
+
+async function eliminarRutaConClave(rutaId, conductor){
+  const clave=prompt(`🔐 Contraseña administrativa para eliminar la ruta de ${conductor}:`);
+  if(clave===null)return; // canceló
+  if(clave!=='antartica2025'){
+    alert('❌ Contraseña incorrecta. Acceso denegado.');
+    return;
+  }
+  if(!confirm(`¿Eliminar definitivamente la ruta de ${conductor}? Esta acción no se puede deshacer.`))return;
+  showLoading('Eliminando ruta...');
+  try{
+    // Eliminar datos relacionados primero
+    const ventas=await sbGet('ventas',`ruta_id=eq.${rutaId}&select=id`);
+    for(const v of ventas)await sbDelete('ventas',v.id);
+    const gastos=await sbGet('gastos',`ruta_id=eq.${rutaId}&select=id`);
+    for(const g of gastos)await sbDelete('gastos',g.id);
+    const recargues=await sbGet('recargues',`ruta_id=eq.${rutaId}&select=id`);
+    for(const r of recargues)await sbDelete('recargues',r.id);
+    const cobros=await sbGet('cobros_cartera',`ruta_id=eq.${rutaId}&select=id`);
+    for(const c of cobros)await sbDelete('cobros_cartera',c.id);
+    await sbDelete('rutas',rutaId);
+    hideLoading();
+    showToast(`✅ Ruta de ${conductor} eliminada`);
+    cargarRutas();
+  }catch(e){hideLoading();alert('Error: '+e.message);}
 }
 
 async function crearRuta(){
@@ -1146,12 +1265,154 @@ async function cargarGerencial(){
   }catch(e){console.error(e);}
 }
 
+function switchGerencial(tab){
+  ['g-hoy','g-historial'].forEach(t=>document.getElementById(t).style.display='none');
+  ['gtab-hoy','gtab-historial'].forEach(b=>document.getElementById(b).classList.remove('active'));
+  document.getElementById(tab).style.display='block';
+  document.getElementById(tab.replace('g-','gtab-')).classList.add('active');
+  if(tab==='g-hoy')cargarGerencial();
+}
+
+// ===== HISTORIAL =====
+async function cargarHistorial(){
+  const fechaInput=document.getElementById('hist-fecha').value;
+  if(!fechaInput){alert('Selecciona una fecha');return;}
+  const fechaLocal=fechaInput; // ya es formato YYYY-MM-DD
+  showLoading('Consultando historial...');
+  try{
+    const rutas=await sbGet('rutas',`fecha=eq.${encodeURIComponent(fechaLocal)}&order=created_at.asc`);
+    document.getElementById('hist-resumen').style.display='none';
+    document.getElementById('hist-empty').style.display='none';
+    if(!rutas.length){hideLoading();document.getElementById('hist-empty').style.display='block';return;}
+
+    const rutaIds=rutas.map(r=>r.id);
+    const [ventas,gastos,cobros]=await Promise.all([
+      sbGet('ventas',`ruta_id=in.(${rutaIds.join(',')})&order=created_at.asc`),
+      sbGet('gastos',`ruta_id=in.(${rutaIds.join(',')})`),
+      sbGet('cobros_cartera',`ruta_id=in.(${rutaIds.join(',')})`)
+    ]);
+
+    // RESUMEN GENERAL
+    const totalVentas=ventas.reduce((s,v)=>s+Number(v.precio),0);
+    const totalEfectivo=ventas.filter(v=>v.forma_pago==='efectivo'||!v.forma_pago).reduce((s,v)=>s+Number(v.abono),0);
+    const totalFiados=ventas.reduce((s,v)=>s+Number(v.debe),0);
+    const b20=ventas.reduce((s,v)=>s+v.b20,0);
+    const b10=ventas.reduce((s,v)=>s+v.b10,0);
+
+    document.getElementById('hist-total').textContent=fmt(totalVentas);
+    document.getElementById('hist-num-rutas').textContent=rutas.length;
+    document.getElementById('hist-efectivo').textContent=fmt(totalEfectivo);
+    document.getElementById('hist-fiados').textContent=fmt(totalFiados);
+    document.getElementById('hist-b20').textContent=b20;
+    document.getElementById('hist-b10').textContent=b10;
+
+    // RESUMEN POR CONDUCTOR
+    const condDiv=document.getElementById('hist-conductores');
+    condDiv.innerHTML=rutas.map(r=>{
+      const rv=ventas.filter(v=>v.ruta_id===r.id);
+      const rg=gastos.filter(g=>g.ruta_id===r.id);
+      const rc=cobros.filter(c=>c.ruta_id===r.id);
+      const rTotalVentas=rv.reduce((s,v)=>s+Number(v.precio),0);
+      const rEfectivo=rv.filter(v=>v.forma_pago==='efectivo'||!v.forma_pago).reduce((s,v)=>s+Number(v.abono),0);
+      const rTransf=rv.filter(v=>v.forma_pago==='transferencia').reduce((s,v)=>s+Number(v.precio),0);
+      const rFiados=rv.reduce((s,v)=>s+Number(v.debe),0);
+      const rGastos=rg.reduce((s,g)=>s+Number(g.valor),0);
+      const rCartera=rc.reduce((s,c)=>s+Number(c.valor),0);
+      const rConsignar=Math.max(0,rEfectivo+rCartera-rGastos);
+      const rb20=rv.reduce((s,v)=>s+v.b20,0),rb10=rv.reduce((s,v)=>s+v.b10,0),rb3=rv.reduce((s,v)=>s+v.b3,0);
+      const fiados=rv.filter(v=>v.debe>0);
+
+      return`<div class="card" style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;">${r.conductor}</div>
+          <div class="ruta-status ${r.estado==='activa'?'status-activa':'status-cerrada'}">${r.estado==='activa'?'EN RUTA':'CERRADA'}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+          <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center;">
+            <div style="font-size:10px;color:var(--text-light);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Total Ventas</div>
+            <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:600;color:var(--cyan);">${fmt(rTotalVentas)}</div>
+          </div>
+          <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center;">
+            <div style="font-size:10px;color:var(--text-light);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">A Consignar</div>
+            <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:600;color:var(--success);">${fmt(rConsignar)}</div>
+          </div>
+          <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center;">
+            <div style="font-size:10px;color:var(--text-light);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Efectivo</div>
+            <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:600;color:var(--success);">${fmt(rEfectivo)}</div>
+          </div>
+          <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center;">
+            <div style="font-size:10px;color:var(--text-light);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Transferencia</div>
+            <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:600;color:var(--transfer);">${fmt(rTransf)}</div>
+          </div>
+          <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center;">
+            <div style="font-size:10px;color:var(--text-light);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Fiados</div>
+            <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:600;color:var(--warning);">${fmt(rFiados)}</div>
+          </div>
+          <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center;">
+            <div style="font-size:10px;color:var(--text-light);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Gastos</div>
+            <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:600;color:var(--danger);">${fmt(rGastos)}</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--text-light);margin-bottom:8px;">
+          Bolsas: ${rb20>0?`${rb20}×20 `:''}${rb10>0?`${rb10}×10 `:''}${rb3>0?`${rb3}×3`:''}
+          &nbsp;·&nbsp; ${rv.length} venta(s)
+          ${rCartera>0?`&nbsp;·&nbsp; Cartera: ${fmt(rCartera)}`:''}
+        </div>
+        ${fiados.length?`<div style="font-size:11px;color:var(--warning);font-weight:600;margin-bottom:4px;">⚠️ Fiados:</div>
+        ${fiados.map(v=>`<div style="font-size:12px;color:var(--text-mid);padding:3px 0;">${v.cliente} — ${fmt(v.debe)}</div>`).join('')}`:''}
+        ${rv.length?`<details style="margin-top:10px;">
+          <summary style="font-size:12px;color:var(--cyan);cursor:pointer;font-weight:600;">Ver ${rv.length} venta(s) ▾</summary>
+          <div style="margin-top:8px;">
+          ${rv.map(v=>{
+            const det=[v.b20>0?`${v.b20}×20`:'',v.b10>0?`${v.b10}×10`:'',v.b3>0?`${v.b3}×3`:''].filter(Boolean).join(' · ');
+            const fp={'efectivo':'💵','transferencia':'🏦','fiado':'⏳'}[v.forma_pago]||'💵';
+            return`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
+              <span>${fp} ${v.cliente}<br><span style="font-size:11px;color:var(--text-light);">${det}</span></span>
+              <span style="font-family:'DM Mono',monospace;font-weight:600;color:var(--cyan);">${fmt(v.precio)}</span>
+            </div>`;}).join('')}
+          </div>
+        </details>`:''}
+      </div>`;
+    }).join('');
+
+    // VENTAS POR PRECIO GLOBAL
+    const pm={};
+    ventas.forEach(v=>{
+      if(v.b20>0){const k=`20-${v.p20||0}`;if(!pm[k])pm[k]={pres:'20 KG',precio:v.p20||0,qty:0,total:0};pm[k].qty+=v.b20;pm[k].total+=v.b20*(v.p20||0);}
+      if(v.b10>0){const k=`10-${v.p10||0}`;if(!pm[k])pm[k]={pres:'10 KG',precio:v.p10||0,qty:0,total:0};pm[k].qty+=v.b10;pm[k].total+=v.b10*(v.p10||0);}
+      if(v.b3>0){const k=`3-${v.p3||0}`;if(!pm[k])pm[k]={pres:'3 KG',precio:v.p3||0,qty:0,total:0};pm[k].qty+=v.b3;pm[k].total+=v.b3*(v.p3||0);}
+    });
+    document.getElementById('hist-precios').innerHTML=!Object.keys(pm).length
+      ?'<div style="font-size:13px;color:var(--text-light);">Sin datos.</div>'
+      :Object.values(pm).sort((a,b)=>b.total-a.total).map(g=>`
+        <div class="precio-group">
+          <div class="pg-header"><span class="pg-precio">${g.pres} · ${fmt(g.precio)}/u</span><span class="pg-total">${fmt(g.total)}</span></div>
+          <div class="pg-bolsas">${fmt(g.precio)} × ${g.qty} bolsa${g.qty!==1?'s':''} = ${fmt(g.total)}</div>
+        </div>`).join('');
+
+    // FIADOS GLOBAL
+    const fiados=ventas.filter(v=>v.debe>0);
+    document.getElementById('hist-fiados-lista').innerHTML=!fiados.length
+      ?'<div style="font-size:13px;color:var(--text-light);">Sin fiados ese día.</div>'
+      :`<table class="fiados-table"><tr><th>Cliente</th><th>Conductor</th><th style="text-align:right">Debe</th></tr>
+        ${fiados.map(v=>{const ruta=rutas.find(r=>r.id===v.ruta_id);
+          return`<tr><td class="td-cliente">${v.cliente}</td><td class="td-det">${ruta?ruta.conductor:'—'}</td><td class="td-monto">${fmt(v.debe)}</td></tr>`;}).join('')}
+        </table>`;
+
+    hideLoading();
+    document.getElementById('hist-resumen').style.display='block';
+  }catch(e){hideLoading();alert('Error: '+e.message);}
+}
+
 // ===== INIT =====
 async function init(){
   const f=hoy();
-  document.getElementById('headerFecha').textContent=fechaCorta();
+  document.getElementById('headerFecha').textContent=new Date().toLocaleDateString('es-CO');
   document.getElementById('subtituloFecha').textContent=f.charAt(0).toUpperCase()+f.slice(1);
   document.getElementById('gerencial-fecha').textContent=f;
+  // Set today as default in historial date picker
+  const hoyISO=new Date().toISOString().split('T')[0];
+  document.getElementById('hist-fecha').value=hoyISO;
   selPago('efectivo');
   try{
     await cargarRutas();
