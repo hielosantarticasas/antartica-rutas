@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hielos Antártica — Rutas</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F4F7FA;--bg2:#EAEFF5;--surface:#FFFFFF;
+    --border:#D6E0EC;--border-accent:#B0C8E8;
+    --blue-deep:#0A1E3D;--blue-mid:#1A4A8A;--blue-accent:#1E7FD8;--cyan:#0099CC;
+    --text:#0A1E3D;--text-mid:#3A5270;--text-light:#7A95B0;
+    --success:#00966E;--success-bg:#E6F7F3;
+    --warning:#B07800;--warning-bg:#FFF8E6;
+    --danger:#CC2233;--danger-bg:#FDECEA;
+    --transfer:#6B4FBB;--transfer-bg:#F0ECFF;
+    --shadow:0 2px 12px rgba(10,30,61,0.08);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+  header{padding:14px 20px;display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid var(--border);background:var(--blue-deep);position:sticky;top:0;z-index:100;}
+  .logo{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:#7DD8F8;}
+  .logo span{color:#fff;}
+  .header-right{display:flex;align-items:center;gap:8px;}
+  .header-badge{font-family:'DM Mono',monospace;font-size:11px;color:#7DD8F8;
+    background:rgba(125,216,248,0.15);border:1px solid rgba(125,216,248,0.3);
+    padding:4px 10px;border-radius:20px;letter-spacing:1px;}
+  .sync-dot{width:8px;height:8px;border-radius:50%;background:#7DD8F8;animation:pulse 2s infinite;}
+  .sync-dot.offline{background:var(--danger);animation:none;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+  .screen{display:none;padding:20px;max-width:480px;margin:0 auto;padding-bottom:90px;}
+  .screen.active{display:block;}
+  .section-title{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;color:var(--blue-mid);margin-bottom:2px;}
+  .section-sub{font-size:13px;color:var(--text-light);margin-bottom:20px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:14px;box-shadow:var(--shadow);}
+  .card-title{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--cyan);margin-bottom:14px;}
+  label{display:block;font-size:11px;font-weight:600;color:var(--text-light);margin-bottom:5px;letter-spacing:.5px;text-transform:uppercase;}
+  input,select,textarea{width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;
+    padding:11px 13px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;margin-bottom:12px;
+    transition:border-color .2s,background .2s;-webkit-appearance:none;}
+  input:focus,select:focus{outline:none;border-color:var(--cyan);background:#EDF6FB;}
+  select option{background:#fff;color:var(--text);}
+
+  .bolsas-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;}
+  .bolsa-item{background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:12px 8px;text-align:center;}
+  .bolsa-label{font-size:9px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;}
+  .bolsa-counter{display:flex;align-items:center;justify-content:center;gap:4px;}
+  .counter-btn{width:26px;height:26px;border-radius:7px;border:1.5px solid var(--border-accent);
+    background:#E8F2FB;color:var(--blue-accent);font-size:16px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;line-height:1;padding:0;flex-shrink:0;transition:background .15s;}
+  .counter-btn:active{background:#C9E0F5;}
+  .counter-input{font-family:'DM Mono',monospace;font-size:17px;font-weight:600;color:var(--text);
+    width:46px;text-align:center;border:1.5px solid var(--border);border-radius:8px;padding:4px 2px;
+    background:var(--surface);margin-bottom:0;}
+  .counter-input:focus{border-color:var(--cyan);background:#EDF6FB;}
+
+  .recargue-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(0,153,204,0.1);
+    border:1px solid rgba(0,153,204,0.3);border-radius:8px;padding:6px 10px;margin-bottom:8px;
+    font-size:12px;color:var(--cyan);font-weight:600;width:100%;}
+
+  .precio-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;}
+  .precio-item{background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:10px 8px;text-align:center;}
+  .precio-item-label{font-size:9px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+  .precio-item input{margin-bottom:0;padding:7px 6px;font-size:13px;font-family:'DM Mono',monospace;text-align:center;border-radius:8px;}
+  .total-calculado{background:linear-gradient(135deg,#EDF6FB,#E6F3FF);border:1.5px solid var(--border-accent);
+    border-radius:12px;padding:14px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;}
+  .total-calc-label{font-size:12px;color:var(--text-mid);font-weight:500;}
+  .total-calc-value{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:1px;color:var(--blue-mid);}
+
+  .btn{width:100%;padding:14px;border-radius:12px;border:none;font-family:'Bebas Neue',sans-serif;
+    font-size:18px;letter-spacing:2px;cursor:pointer;transition:all .2s;margin-bottom:10px;}
+  .btn-primary{background:linear-gradient(135deg,var(--blue-mid),var(--cyan));color:#fff;}
+  .btn-primary:active{transform:scale(.98);}
+  .btn-success{background:linear-gradient(135deg,#008060,var(--success));color:#fff;}
+  .btn-danger{background:transparent;border:1.5px solid rgba(204,34,51,.4);color:var(--danger);font-size:14px;padding:10px;}
+  .btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--text-mid);font-size:14px;letter-spacing:1px;padding:12px;}
+  .btn-warning{background:linear-gradient(135deg,#CC8800,var(--warning));color:#fff;}
+  .btn-sm{padding:8px 14px;font-size:14px;letter-spacing:1px;border-radius:8px;width:auto;margin-bottom:0;}
+
+  .pago-toggle{display:flex;gap:6px;margin-bottom:12px;}
+  .pago-opt{flex:1;padding:9px 6px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);
+    color:var(--text-mid);font-size:12px;font-weight:600;cursor:pointer;text-align:center;transition:all .2s;}
+  .pago-opt.selected-efectivo{background:var(--success-bg);border-color:var(--success);color:var(--success);}
+  .pago-opt.selected-transferencia{background:var(--transfer-bg);border-color:var(--transfer);color:var(--transfer);}
+  .pago-opt.selected-fiado{background:var(--warning-bg);border-color:var(--warning);color:var(--warning);}
+
+  .tabs{display:flex;gap:5px;margin-bottom:18px;overflow-x:auto;padding-bottom:2px;}
+  .tab{flex:1;min-width:fit-content;padding:8px 8px;border-radius:10px;border:1.5px solid var(--border);
+    background:var(--surface);color:var(--text-light);font-family:'DM Sans',sans-serif;font-size:11px;
+    font-weight:700;cursor:pointer;text-align:center;transition:all .2s;white-space:nowrap;}
+  .tab.active{background:var(--blue-mid);border-color:var(--blue-mid);color:#fff;}
+
+  .entrega-item{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;
+    padding:14px;margin-bottom:10px;position:relative;box-shadow:0 1px 6px rgba(10,30,61,.05);}
+  .entrega-item.editando{border-color:var(--cyan);background:#EDF6FB;}
+  .entrega-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;}
+  .entrega-cliente{font-weight:700;font-size:15px;color:var(--text);}
+  .entrega-tipo{font-size:10px;padding:3px 8px;border-radius:20px;font-weight:700;letter-spacing:.5px;}
+  .tipo-efectivo{background:var(--success-bg);color:var(--success);}
+  .tipo-fiado{background:var(--warning-bg);color:var(--warning);}
+  .tipo-transferencia{background:var(--transfer-bg);color:var(--transfer);}
+  .entrega-detalle{font-size:13px;color:var(--text-light);font-family:'DM Mono',monospace;}
+  .entrega-monto{font-family:'DM Mono',monospace;font-size:16px;font-weight:600;color:var(--cyan);margin-top:6px;}
+  .entrega-actions{display:flex;gap:6px;margin-top:8px;}
+  .btn-edit{background:rgba(0,153,204,.1);border:1px solid rgba(0,153,204,.3);color:var(--cyan);
+    border-radius:7px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;}
+  .btn-del{background:none;border:1px solid rgba(204,34,51,.3);color:var(--danger);
+    border-radius:7px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;}
+
+  .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+  .stat-box{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;padding:16px;text-align:center;box-shadow:var(--shadow);}
+  .stat-label{font-size:10px;color:var(--text-light);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;font-weight:600;}
+  .stat-value{font-family:'DM Mono',monospace;font-size:18px;font-weight:600;}
+  .stat-value.green{color:var(--success);}
+  .stat-value.yellow{color:var(--warning);}
+  .stat-value.cyan{color:var(--cyan);}
+  .stat-value.dark{color:var(--text);}
+  .stat-value.purple{color:var(--transfer);}
+
+  .gasto-row{display:flex;gap:8px;margin-bottom:8px;}
+  .gasto-row input{margin-bottom:0;flex:1;}
+  .gasto-row input:first-child{flex:2;}
+  .remove-btn{background:var(--danger-bg);border:1.5px solid rgba(204,34,51,.3);color:var(--danger);
+    border-radius:8px;padding:0 12px;cursor:pointer;font-size:18px;flex-shrink:0;}
+  .divider{border:none;border-top:1px solid var(--border);margin:14px 0;}
+
+  .highlight-row{display:flex;justify-content:space-between;align-items:center;
+    padding:10px 0;border-bottom:1px solid var(--border);font-size:14px;}
+  .highlight-row:last-child{border-bottom:none;}
+  .hl-label{color:var(--text-mid);}
+  .hl-val{font-family:'DM Mono',monospace;font-weight:600;color:var(--text);}
+
+  .fiados-table{width:100%;border-collapse:collapse;margin-top:4px;}
+  .fiados-table th{font-size:10px;font-weight:700;color:var(--text-light);text-transform:uppercase;
+    letter-spacing:1px;padding:6px 0;border-bottom:1.5px solid var(--border);text-align:left;}
+  .fiados-table td{font-size:13px;padding:8px 0;border-bottom:1px solid var(--border);vertical-align:top;}
+  .fiados-table tr:last-child td{border-bottom:none;}
+  .fiados-table .td-monto{font-family:'DM Mono',monospace;color:var(--warning);font-weight:600;text-align:right;}
+  .fiados-table .td-cliente{font-weight:600;color:var(--text);}
+  .fiados-table .td-det{color:var(--text-light);font-size:11px;}
+
+  .precio-group{background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:6px;}
+  .pg-header{display:flex;justify-content:space-between;margin-bottom:2px;}
+  .pg-precio{font-family:'DM Mono',monospace;font-size:12px;color:var(--cyan);font-weight:600;}
+  .pg-bolsas{font-size:11px;color:var(--text-light);}
+  .pg-total{font-family:'DM Mono',monospace;font-size:14px;color:var(--text);font-weight:700;}
+
+  .ruta-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;
+    padding:16px;margin-bottom:12px;cursor:pointer;transition:border-color .2s;box-shadow:var(--shadow);}
+  .ruta-card:active{border-color:var(--cyan);}
+  .ruta-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .ruta-nombre{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;color:var(--text);}
+  .ruta-status{font-size:10px;padding:4px 10px;border-radius:20px;font-weight:700;letter-spacing:1px;text-transform:uppercase;}
+  .status-activa{background:var(--success-bg);color:var(--success);}
+  .status-cerrada{background:var(--bg2);color:var(--text-light);}
+  .ruta-info{font-size:13px;color:var(--text-light);}
+  .ruta-total{font-family:'DM Mono',monospace;font-size:18px;color:var(--success);margin-top:8px;font-weight:600;}
+
+  .cobro-card{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;
+    padding:14px;margin-bottom:10px;}
+  .cobro-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .cobro-cliente{font-weight:700;font-size:15px;color:var(--text);}
+  .cobro-monto-badge{font-family:'DM Mono',monospace;font-size:14px;font-weight:700;
+    background:var(--success-bg);color:var(--success);padding:3px 10px;border-radius:20px;}
+  .cobro-meta{font-size:12px;color:var(--text-light);margin-bottom:8px;}
+  .cobro-row{display:flex;gap:8px;}
+  .cobro-row input{margin-bottom:0;flex:1;}
+  .cobro-btn{background:var(--success);color:#fff;border:none;border-radius:8px;
+    padding:10px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+
+  .cartera-item{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;
+    padding:14px;margin-bottom:10px;box-shadow:0 1px 6px rgba(10,30,61,.05);}
+  .cartera-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;}
+  .cartera-cliente{font-weight:700;font-size:15px;color:var(--text);}
+  .cartera-debe{font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:var(--danger);}
+  .cartera-meta{font-size:12px;color:var(--text-light);margin-bottom:10px;}
+  .cartera-cobrada{border-color:var(--success);background:var(--success-bg);}
+  .cartera-cobrada .cartera-debe{color:var(--success);}
+  .total-cartera-box{background:var(--warning-bg);border:1.5px solid rgba(176,120,0,.3);
+    border-radius:14px;padding:16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;}
+  .total-cartera-label{font-size:12px;color:var(--warning);font-weight:700;text-transform:uppercase;letter-spacing:1px;}
+  .total-cartera-val{font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--warning);}
+  .abono-badge{display:inline-block;background:rgba(0,150,110,.1);color:var(--success);
+    border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;margin-top:4px;}
+
+  /* LOADING */
+  .loading-overlay{position:fixed;inset:0;background:rgba(10,30,61,.7);z-index:999;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
+  .loading-overlay.hidden{display:none;}
+  .spinner{width:40px;height:40px;border:3px solid rgba(125,216,248,.3);
+    border-top-color:#7DD8F8;border-radius:50%;animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .loading-text{color:#7DD8F8;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;}
+
+  .toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);
+    background:var(--blue-deep);color:#fff;padding:10px 20px;border-radius:10px;
+    font-size:13px;font-weight:600;z-index:998;opacity:0;transition:opacity .3s;pointer-events:none;
+    border:1px solid rgba(125,216,248,.3);}
+  .toast.show{opacity:1;}
+
+  .empty{text-align:center;padding:36px 20px;color:var(--text-light);font-size:14px;}
+  .empty-icon{font-size:36px;margin-bottom:10px;opacity:.4;}
+  .bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);
+    border-top:1.5px solid var(--border);display:flex;z-index:100;
+    box-shadow:0 -4px 20px rgba(10,30,61,.08);}
+  .nav-item{flex:1;padding:10px 6px;text-align:center;cursor:pointer;color:var(--text-light);
+    font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;background:none;transition:color .2s;}
+  .nav-item.active{color:var(--cyan);}
+  .nav-icon{font-size:20px;margin-bottom:2px;display:block;}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">Conectando...</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<header>
+  <div class="logo">HIELOS <span>ANTÁRTICA</span></div>
+  <div class="header-right">
+    <div class="header-badge" id="headerFecha">—</div>
+    <div class="sync-dot" id="syncDot" title="En línea"></div>
+  </div>
+</header>
+
+<!-- INICIO -->
+<div class="screen active" id="screen-inicio">
+  <div class="section-title">RUTAS HOY</div>
+  <div class="section-sub" id="subtituloFecha"></div>
+  <div id="listadoRutas"><div class="empty"><div class="empty-icon">🚛</div>Cargando rutas...</div></div>
+  <button class="btn btn-primary" onclick="showScreen('screen-nueva-ruta')">+ NUEVA RUTA</button>
+  <button class="btn btn-outline" onclick="navTo('screen-gerencial')">📊 VISTA GERENCIAL</button>
+</div>
+
+<!-- NUEVA RUTA -->
+<div class="screen" id="screen-nueva-ruta">
+  <div class="section-title">NUEVA RUTA</div>
+  <div class="section-sub">Datos del conductor y cargue inicial</div>
+  <div class="card">
+    <div class="card-title">Conductor</div>
+    <label>Nombre conductor</label>
+    <input type="text" id="nr-conductor" placeholder="Ej: Carlos Pérez">
+    <label>Vehículo / Placa</label>
+    <input type="text" id="nr-vehiculo" placeholder="Ej: TNB-234">
+    <label>Auxiliar(es)</label>
+    <input type="text" id="nr-auxiliar" placeholder="Ej: Juan López">
+  </div>
+  <div class="card">
+    <div class="card-title">Cargue de Mercancía</div>
+    <p style="font-size:13px;color:var(--text-light);margin-bottom:14px;">¿Cuántas bolsas salen? Usa + / − o escribe la cantidad.</p>
+    <div class="bolsas-grid">
+      <div class="bolsa-item"><div class="bolsa-label">20 KG</div><div class="bolsa-counter">
+        <button class="counter-btn" onclick="cambiarBI('nr-b20',-1)">−</button>
+        <input type="number" class="counter-input" id="nr-b20" value="0" min="0" inputmode="numeric">
+        <button class="counter-btn" onclick="cambiarBI('nr-b20',1)">+</button>
+      </div></div>
+      <div class="bolsa-item"><div class="bolsa-label">10 KG</div><div class="bolsa-counter">
+        <button class="counter-btn" onclick="cambiarBI('nr-b10',-1)">−</button>
+        <input type="number" class="counter-input" id="nr-b10" value="0" min="0" inputmode="numeric">
+        <button class="counter-btn" onclick="cambiarBI('nr-b10',1)">+</button>
+      </div></div>
+      <div class="bolsa-item"><div class="bolsa-label">3 KG</div><div class="bolsa-counter">
+        <button class="counter-btn" onclick="cambiarBI('nr-b3',-1)">−</button>
+        <input type="number" class="counter-input" id="nr-b3" value="0" min="0" inputmode="numeric">
+        <button class="counter-btn" onclick="cambiarBI('nr-b3',1)">+</button>
+      </div></div>
+    </div>
+  </div>
+  <button class="btn btn-primary" onclick="crearRuta()">🚛 INICIAR RUTA</button>
+  <button class="btn btn-outline" onclick="showScreen('screen-inicio')">CANCELAR</button>
+</div>
+
+<!-- RUTA ACTIVA -->
+<div class="screen" id="screen-ruta-activa">
+  <div class="section-title" id="ra-titulo">RUTA</div>
+  <div class="section-sub" id="ra-subtitulo"></div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('tab-recargue')" id="tab-btn-recargue">🔄 Recargue</button>
+    <button class="tab" onclick="switchTab('tab-ventas')" id="tab-btn-ventas">🧾 Ventas</button>
+    <button class="tab" onclick="switchTab('tab-gastos')" id="tab-btn-gastos">💸 Gastos</button>
+    <button class="tab" onclick="switchTab('tab-cartera-ruta')" id="tab-btn-cartera-ruta">💰 Cartera</button>
+    <button class="tab" onclick="switchTab('tab-resumen')" id="tab-btn-resumen">📊 Resumen</button>
+  </div>
+
+  <!-- TAB: RECARGUE -->
+  <div id="tab-recargue">
+    <div class="card">
+      <div class="card-title">RECARGUES DE MERCANCÍA</div>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:12px;">El camión volvió a cargar. Añade las bolsas subidas.</p>
+      <div id="recargues-lista"></div>
+      <div id="form-recargue" style="display:none;">
+        <div class="bolsas-grid">
+          <div class="bolsa-item"><div class="bolsa-label">20 KG</div><div class="bolsa-counter">
+            <button class="counter-btn" onclick="cambiarBI('rec-b20',-1)">−</button>
+            <input type="number" class="counter-input" id="rec-b20" value="0" min="0" inputmode="numeric">
+            <button class="counter-btn" onclick="cambiarBI('rec-b20',1)">+</button>
+          </div></div>
+          <div class="bolsa-item"><div class="bolsa-label">10 KG</div><div class="bolsa-counter">
+            <button class="counter-btn" onclick="cambiarBI('rec-b10',-1)">−</button>
+            <input type="number" class="counter-input" id="rec-b10" value="0" min="0" inputmode="numeric">
+            <button class="counter-btn" onclick="cambiarBI('rec-b10',1)">+</button>
+          </div></div>
+          <div class="bolsa-item"><div class="bolsa-label">3 KG</div><div class="bolsa-counter">
+            <button class="counter-btn" onclick="cambiarBI('rec-b3',-1)">−</button>
+            <input type="number" class="counter-input" id="rec-b3" value="0" min="0" inputmode="numeric">
+            <button class="counter-btn" onclick="cambiarBI('rec-b3',1)">+</button>
+          </div></div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary btn-sm" style="flex:1;" onclick="confirmarRecargue()">✅ CONFIRMAR</button>
+          <button class="btn btn-outline btn-sm" style="flex:1;" onclick="document.getElementById('form-recargue').style.display='none'">CANCELAR</button>
+        </div>
+      </div>
+      <button class="btn btn-outline" style="margin-top:8px;" onclick="mostrarFormRecargue()">🔄 + AÑADIR RECARGUE</button>
+    </div>
+  </div>
+
+  <!-- TAB: VENTAS -->
+  <div id="tab-ventas" style="display:none;">
+    <div class="card" id="form-entrega-card">
+      <div class="card-title" id="form-entrega-titulo">NUEVA VENTA</div>
+      <input type="hidden" id="e-edit-id" value="">
+      <label>Cliente / Lugar</label>
+      <input type="text" id="e-cliente" placeholder="Nombre del cliente">
+      <label>Tipo de cliente</label>
+      <select id="e-tipo-cliente">
+        <option value="">Seleccionar...</option>
+        <option>Bar</option><option>Restaurante</option>
+        <option>Revendedor (triciclo)</option><option>Distribuidora</option>
+        <option>Evento / Concierto</option><option>La Cosecha</option><option>Otro</option>
+      </select>
+      <label>Cantidad de bolsas</label>
+      <div class="bolsas-grid">
+        <div class="bolsa-item"><div class="bolsa-label">20 KG</div><div class="bolsa-counter">
+          <button class="counter-btn" onclick="cambiarBICalc('e-b20',-1)">−</button>
+          <input type="number" class="counter-input" id="e-b20" value="0" min="0" inputmode="numeric" oninput="calcularTotal()">
+          <button class="counter-btn" onclick="cambiarBICalc('e-b20',1)">+</button>
+        </div></div>
+        <div class="bolsa-item"><div class="bolsa-label">10 KG</div><div class="bolsa-counter">
+          <button class="counter-btn" onclick="cambiarBICalc('e-b10',-1)">−</button>
+          <input type="number" class="counter-input" id="e-b10" value="0" min="0" inputmode="numeric" oninput="calcularTotal()">
+          <button class="counter-btn" onclick="cambiarBICalc('e-b10',1)">+</button>
+        </div></div>
+        <div class="bolsa-item"><div class="bolsa-label">3 KG</div><div class="bolsa-counter">
+          <button class="counter-btn" onclick="cambiarBICalc('e-b3',-1)">−</button>
+          <input type="number" class="counter-input" id="e-b3" value="0" min="0" inputmode="numeric" oninput="calcularTotal()">
+          <button class="counter-btn" onclick="cambiarBICalc('e-b3',1)">+</button>
+        </div></div>
+      </div>
+      <label>Precio por unidad ($)</label>
+      <div class="precio-grid">
+        <div class="precio-item"><div class="precio-item-label">20 KG c/u</div>
+          <input type="number" id="p-20" placeholder="0" inputmode="numeric" oninput="calcularTotal()"></div>
+        <div class="precio-item"><div class="precio-item-label">10 KG c/u</div>
+          <input type="number" id="p-10" placeholder="0" inputmode="numeric" oninput="calcularTotal()"></div>
+        <div class="precio-item"><div class="precio-item-label">3 KG c/u</div>
+          <input type="number" id="p-3" placeholder="0" inputmode="numeric" oninput="calcularTotal()"></div>
+      </div>
+      <div class="total-calculado">
+        <span class="total-calc-label">Total calculado</span>
+        <span class="total-calc-value" id="total-calc">$0</span>
+      </div>
+      <label>Forma de pago</label>
+      <div class="pago-toggle">
+        <button class="pago-opt" id="opt-efectivo" onclick="selPago('efectivo')">💵 Efectivo</button>
+        <button class="pago-opt" id="opt-transferencia" onclick="selPago('transferencia')">🏦 Transf.</button>
+        <button class="pago-opt" id="opt-fiado" onclick="selPago('fiado')">⏳ Fiado</button>
+      </div>
+      <div id="fiado-extra" style="display:none;">
+        <label>¿Cuánto abonó?</label>
+        <input type="number" id="e-abono" placeholder="0" inputmode="numeric">
+      </div>
+      <label>Nota (opcional)</label>
+      <input type="text" id="e-nota" placeholder="Ej: paga viernes">
+      <button class="btn btn-success" id="btn-guardar-entrega" onclick="guardarVenta()">+ REGISTRAR VENTA</button>
+      <button class="btn btn-outline" id="btn-cancelar-edicion" style="display:none;" onclick="cancelarEdicion()">CANCELAR EDICIÓN</button>
+    </div>
+    <div id="lista-ventas"><div class="empty"><div class="empty-icon">🧾</div>Sin ventas aún.</div></div>
+  </div>
+
+  <!-- TAB: GASTOS -->
+  <div id="tab-gastos" style="display:none;">
+    <div class="card">
+      <div class="card-title">GASTOS EN RUTA</div>
+      <div id="gastos-list"></div>
+      <button class="btn btn-outline" onclick="agregarGastoUI()" style="margin-top:4px;">+ AGREGAR GASTO</button>
+      <button class="btn btn-success" style="margin-top:8px;" onclick="guardarGastos()">💾 GUARDAR GASTOS</button>
+    </div>
+    <div class="card">
+      <div class="card-title">DEVOLUCIONES</div>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:14px;">Bolsas que regresan al camión</p>
+      <div class="bolsas-grid">
+        <div class="bolsa-item"><div class="bolsa-label">20 KG</div><div class="bolsa-counter">
+          <button class="counter-btn" onclick="cambiarBI('dev-b20',-1)">−</button>
+          <input type="number" class="counter-input" id="dev-b20" value="0" min="0" inputmode="numeric">
+          <button class="counter-btn" onclick="cambiarBI('dev-b20',1)">+</button>
+        </div></div>
+        <div class="bolsa-item"><div class="bolsa-label">10 KG</div><div class="bolsa-counter">
+          <button class="counter-btn" onclick="cambiarBI('dev-b10',-1)">−</button>
+          <input type="number" class="counter-input" id="dev-b10" value="0" min="0" inputmode="numeric">
+          <button class="counter-btn" onclick="cambiarBI('dev-b10',1)">+</button>
+        </div></div>
+        <div class="bolsa-item"><div class="bolsa-label">3 KG</div><div class="bolsa-counter">
+          <button class="counter-btn" onclick="cambiarBI('dev-b3',-1)">−</button>
+          <input type="number" class="counter-input" id="dev-b3" value="0" min="0" inputmode="numeric">
+          <button class="counter-btn" onclick="cambiarBI('dev-b3',1)">+</button>
+        </div></div>
+      </div>
+      <button class="btn btn-success" onclick="guardarDevoluciones()">💾 GUARDAR DEVOLUCIONES</button>
+    </div>
+  </div>
+
+  <!-- TAB: CARTERA RUTA -->
+  <div id="tab-cartera-ruta" style="display:none;">
+    <div class="card">
+      <div class="card-title">REGISTRAR COBRO DE CARTERA</div>
+      <label>Nombre del cliente</label>
+      <input type="text" id="cr-cliente" placeholder="Ej: Bar El Rincón">
+      <label>Valor cobrado ($)</label>
+      <input type="number" id="cr-valor" placeholder="0" inputmode="numeric">
+      <label>Nota (opcional)</label>
+      <input type="text" id="cr-nota" placeholder="Ej: saldo semana pasada">
+      <button class="btn btn-warning" onclick="agregarCobroCartera()">💰 REGISTRAR COBRO</button>
+    </div>
+    <div id="lista-cobros-ruta"><div class="empty"><div class="empty-icon">💰</div>Sin cobros de cartera.</div></div>
+  </div>
+
+  <!-- TAB: RESUMEN -->
+  <div id="tab-resumen" style="display:none;">
+    <div class="stats-grid">
+      <div class="stat-box"><div class="stat-label">Total Ventas</div><div class="stat-value cyan" id="res-total-ventas">$0</div></div>
+      <div class="stat-box"><div class="stat-label">Ventas</div><div class="stat-value dark" id="res-num-ventas">0</div></div>
+      <div class="stat-box"><div class="stat-label">Efectivo</div><div class="stat-value green" id="res-efectivo">$0</div></div>
+      <div class="stat-box"><div class="stat-label">Transferencia</div><div class="stat-value purple" id="res-transferencia">$0</div></div>
+      <div class="stat-box"><div class="stat-label">Fiados</div><div class="stat-value yellow" id="res-fiados">$0</div></div>
+      <div class="stat-box"><div class="stat-label">Cartera Cobrada</div><div class="stat-value green" id="res-cartera-stat">$0</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">CUADRE DE BOLSAS</div>
+      <div class="highlight-row"><span class="hl-label">Cargue inicial</span><span class="hl-val" id="res-salidas">—</span></div>
+      <div id="res-recargues-rows"></div>
+      <div class="highlight-row"><span class="hl-label" style="color:var(--cyan);font-weight:700;">Total disponible</span><span class="hl-val" id="res-total-disp" style="color:var(--cyan)">—</span></div>
+      <div class="highlight-row"><span class="hl-label">Vendidas en ruta</span><span class="hl-val" id="res-vendidas">—</span></div>
+      <div class="highlight-row"><span class="hl-label">Devoluciones</span><span class="hl-val" id="res-devoluciones">—</span></div>
+      <div class="highlight-row"><span class="hl-label" style="font-weight:700;">Sobrantes en camión</span><span class="hl-val" id="res-sobrantes" style="color:var(--danger)">—</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">VENTAS POR PRECIO</div>
+      <div id="res-precios-agrupados"><div style="font-size:13px;color:var(--text-light);">Sin ventas.</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">CLIENTES CON FIADO</div>
+      <div id="res-fiados-tabla"><div style="font-size:13px;color:var(--text-light);">Sin fiados.</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">CARTERA COBRADA EN RUTA</div>
+      <div id="res-cobros-lista"><div style="font-size:13px;color:var(--text-light);">Sin cobros.</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">CUADRE FINANCIERO</div>
+      <div class="highlight-row"><span class="hl-label">Efectivo ventas</span><span class="hl-val" id="res-ef2">$0</span></div>
+      <div class="highlight-row"><span class="hl-label">Transferencias</span><span class="hl-val" style="color:var(--transfer)" id="res-transf2">$0</span></div>
+      <div class="highlight-row"><span class="hl-label">Cartera cobrada</span><span class="hl-val" style="color:var(--success)" id="res-cart2">$0</span></div>
+      <div class="highlight-row"><span class="hl-label">Total gastos</span><span class="hl-val" style="color:var(--danger)" id="res-gastos-total">$0</span></div>
+      <div class="divider"></div>
+      <div class="highlight-row"><span class="hl-label" style="font-weight:700;font-size:16px;">Efectivo a consignar</span><span class="hl-val" style="color:var(--success);font-size:22px;" id="res-consignar">$0</span></div>
+      <div class="highlight-row"><span class="hl-label">Ya consignado (transf.)</span><span class="hl-val" style="color:var(--transfer)" id="res-ya-consignado">$0</span></div>
+    </div>
+    <button class="btn btn-success" onclick="cerrarRuta()">✅ CERRAR Y LIQUIDAR RUTA</button>
+    <button class="btn btn-outline" onclick="showScreen('screen-inicio')">← VOLVER</button>
+  </div>
+</div>
+
+<!-- CARTERA GLOBAL -->
+<div class="screen" id="screen-cartera">
+  <div class="section-title">CARTERA GLOBAL</div>
+  <div class="section-sub">Todos los fiados pendientes</div>
+  <div class="total-cartera-box">
+    <span class="total-cartera-label">⚠️ Por cobrar</span>
+    <span class="total-cartera-val" id="cartera-total">$0</span>
+  </div>
+  <div id="cartera-lista"><div class="empty"><div class="empty-icon">💰</div>Sin fiados pendientes.</div></div>
+</div>
+
+<!-- GERENCIAL -->
+<div class="screen" id="screen-gerencial">
+  <div class="section-title">GERENCIAL</div>
+  <div class="section-sub" id="gerencial-fecha"></div>
+  <div class="stats-grid">
+    <div class="stat-box"><div class="stat-label">Ventas Totales</div><div class="stat-value cyan" id="g-ventas-total">$0</div></div>
+    <div class="stat-box"><div class="stat-label">Rutas Activas</div><div class="stat-value dark" id="g-rutas-activas">0</div></div>
+    <div class="stat-box"><div class="stat-label">Cobrado</div><div class="stat-value green" id="g-cobrado">$0</div></div>
+    <div class="stat-box"><div class="stat-label">Fiados</div><div class="stat-value yellow" id="g-fiados">$0</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">POR CANAL / TIPO CLIENTE</div>
+    <div id="g-por-canal"><div class="empty" style="padding:20px 0;">Sin datos</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">POR PRESENTACIÓN</div>
+    <div class="highlight-row"><span class="hl-label">Bolsas 20 KG</span><span class="hl-val" style="color:var(--cyan)" id="g-b20">0</span></div>
+    <div class="highlight-row"><span class="hl-label">Bolsas 10 KG</span><span class="hl-val" style="color:var(--cyan)" id="g-b10">0</span></div>
+    <div class="highlight-row"><span class="hl-label">Bolsas 3 KG</span><span class="hl-val" style="color:var(--cyan)" id="g-b3">0</span></div>
+  </div>
+  <div class="card">
+    <div class="card-title">RUTAS DEL DÍA</div>
+    <div id="g-lista-rutas"><div class="empty" style="padding:20px 0;">Sin rutas</div></div>
+  </div>
+  <button class="btn btn-outline" onclick="showScreen('screen-inicio')">← VOLVER</button>
+</div>
+
+<nav class="bottom-nav">
+  <button class="nav-item active" onclick="navTo('screen-inicio')" id="nav-inicio"><span class="nav-icon">🏠</span>Inicio</button>
+  <button class="nav-item" onclick="navTo('screen-nueva-ruta')" id="nav-nueva"><span class="nav-icon">🚛</span>Nueva Ruta</button>
+  <button class="nav-item" onclick="navTo('screen-cartera')" id="nav-cartera"><span class="nav-icon">💰</span>Cartera</button>
+  <button class="nav-item" onclick="navTo('screen-gerencial')" id="nav-gerencial"><span class="nav-icon">📊</span>Gerencial</button>
+</nav>
+
+<script>
+// ===== SUPABASE CONFIG =====
+const SB_URL = 'https://pjgltngkwdspjpguvnsh.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBqZ2x0bmdrd2RzcGpwZ3V2bnNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0ODM0ODMsImV4cCI6MjA5NjA1OTQ4M30.Ud4cTyhwd2UV6Jw9Rb8rrA3YQ7X42H9iINXQtcODXw4';
+const HEADERS = {'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
+
+async function sbGet(table, params=''){
+  const r = await fetch(`${SB_URL}/rest/v1/${table}?${params}`, {headers:{...HEADERS,'Prefer':'return=representation'}});
+  if(!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+async function sbPost(table, body){
+  const r = await fetch(`${SB_URL}/rest/v1/${table}`, {method:'POST',headers:{...HEADERS,'Prefer':'return=representation'},body:JSON.stringify(body)});
+  if(!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+async function sbPatch(table, id, body){
+  const r = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, {method:'PATCH',headers:{...HEADERS,'Prefer':'return=representation'},body:JSON.stringify(body)});
+  if(!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+async function sbDelete(table, id){
+  const r = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, {method:'DELETE',headers:HEADERS});
+  if(!r.ok) throw new Error(await r.text());
+}
+
+// ===== STATE =====
+let rutaActivaId = null;
+let rutaActivaData = null;
+let pagoSeleccionado = 'efectivo';
+
+// ===== UTILS =====
+function fmt(n){return '$'+Number(n||0).toLocaleString('es-CO');}
+function hoy(){return new Date().toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'});}
+function fechaCorta(){return new Date().toLocaleDateString('es-CO');}
+function showLoading(msg='Guardando...'){document.getElementById('loadingText').textContent=msg;document.getElementById('loadingOverlay').classList.remove('hidden');}
+function hideLoading(){document.getElementById('loadingOverlay').classList.add('hidden');}
+function showToast(msg,dur=2500){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
+function setSyncDot(online){const d=document.getElementById('syncDot');d.classList.toggle('offline',!online);}
+
+// ===== NAV =====
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(id==='screen-gerencial')cargarGerencial();
+  if(id==='screen-ruta-activa'&&rutaActivaId)cargarResumen();
+  if(id==='screen-cartera')cargarCarteraGlobal();
+  if(id==='screen-inicio')cargarRutas();
+  window.scrollTo(0,0);
+}
+function navTo(id){
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const m={'screen-inicio':'nav-inicio','screen-nueva-ruta':'nav-nueva','screen-cartera':'nav-cartera','screen-gerencial':'nav-gerencial'};
+  if(m[id])document.getElementById(m[id]).classList.add('active');
+  showScreen(id);
+}
+function switchTab(tab){
+  ['tab-recargue','tab-ventas','tab-gastos','tab-cartera-ruta','tab-resumen'].forEach(t=>document.getElementById(t).style.display='none');
+  ['tab-btn-recargue','tab-btn-ventas','tab-btn-gastos','tab-btn-cartera-ruta','tab-btn-resumen'].forEach(b=>document.getElementById(b).classList.remove('active'));
+  document.getElementById(tab).style.display='block';
+  document.getElementById('tab-btn-'+tab.replace('tab-','')).classList.add('active');
+  if(tab==='tab-resumen')cargarResumen();
+  if(tab==='tab-cartera-ruta')cargarCobrosRuta();
+  if(tab==='tab-recargue')cargarRecargues();
+  if(tab==='tab-ventas')cargarVentas();
+  if(tab==='tab-gastos')cargarGastosUI();
+}
+
+// ===== COUNTERS =====
+function cambiarBI(id,delta){const el=document.getElementById(id);el.value=Math.max(0,(parseInt(el.value)||0)+delta);}
+function cambiarBICalc(id,delta){cambiarBI(id,delta);calcularTotal();}
+function getI(id){return parseInt(document.getElementById(id).value)||0;}
+function resetI(...ids){ids.forEach(id=>{const el=document.getElementById(id);if(el)el.value='0';});}
+
+// ===== PRECIO AUTO =====
+function calcularTotal(){
+  const b20=getI('e-b20'),b10=getI('e-b10'),b3=getI('e-b3');
+  const p20=parseFloat(document.getElementById('p-20').value)||0;
+  const p10=parseFloat(document.getElementById('p-10').value)||0;
+  const p3=parseFloat(document.getElementById('p-3').value)||0;
+  document.getElementById('total-calc').textContent=fmt((b20*p20)+(b10*p10)+(b3*p3));
+}
+function getTotalCalc(){
+  const b20=getI('e-b20'),b10=getI('e-b10'),b3=getI('e-b3');
+  const p20=parseFloat(document.getElementById('p-20').value)||0;
+  const p10=parseFloat(document.getElementById('p-10').value)||0;
+  const p3=parseFloat(document.getElementById('p-3').value)||0;
+  return(b20*p20)+(b10*p10)+(b3*p3);
+}
+
+// ===== PAGO =====
+function selPago(tipo){
+  pagoSeleccionado=tipo;
+  ['efectivo','transferencia','fiado'].forEach(t=>document.getElementById('opt-'+t).className='pago-opt'+(tipo===t?' selected-'+t:''));
+  document.getElementById('fiado-extra').style.display=tipo==='fiado'?'block':'none';
+}
+
+// ===== RUTAS =====
+async function cargarRutas(){
+  try{
+    setSyncDot(true);
+    const fecha=fechaCorta();
+    const rutas=await sbGet('rutas',`fecha=eq.${encodeURIComponent(fecha)}&order=created_at.desc&select=*`);
+    renderListadoRutas(rutas);
+  }catch(e){setSyncDot(false);console.error(e);}
+}
+
+function renderListadoRutas(rutas){
+  const lista=document.getElementById('listadoRutas');
+  if(!rutas.length){lista.innerHTML='<div class="empty"><div class="empty-icon">🚛</div>No hay rutas creadas hoy.</div>';return;}
+  lista.innerHTML=rutas.map(r=>`
+    <div class="ruta-card" onclick="abrirRuta('${r.id}')">
+      <div class="ruta-header">
+        <div class="ruta-nombre">${r.conductor}</div>
+        <div class="ruta-status ${r.estado==='activa'?'status-activa':'status-cerrada'}">${r.estado==='activa'?'EN RUTA':'CERRADA'}</div>
+      </div>
+      <div class="ruta-info">${r.vehiculo||'—'} · ${r.estado}</div>
+      <div class="ruta-total" id="total-ruta-${r.id}">Cargando...</div>
+    </div>`).join('');
+  // Cargar totales
+  rutas.forEach(async r=>{
+    try{
+      const ventas=await sbGet('ventas',`ruta_id=eq.${r.id}&select=precio`);
+      const total=ventas.reduce((s,v)=>s+Number(v.precio),0);
+      const el=document.getElementById('total-ruta-'+r.id);
+      if(el)el.textContent=fmt(total);
+    }catch(e){}
+  });
+}
+
+async function crearRuta(){
+  const conductor=document.getElementById('nr-conductor').value.trim();
+  if(!conductor){alert('Ingresa el nombre del conductor');return;}
+  showLoading('Creando ruta...');
+  try{
+    const data={
+      conductor,
+      vehiculo:document.getElementById('nr-vehiculo').value.trim(),
+      auxiliar:document.getElementById('nr-auxiliar').value.trim(),
+      fecha:fechaCorta(),
+      salida_b20:getI('nr-b20'),salida_b10:getI('nr-b10'),salida_b3:getI('nr-b3'),
+      estado:'activa'
+    };
+    const res=await sbPost('rutas',data);
+    hideLoading();
+    document.getElementById('nr-conductor').value='';
+    document.getElementById('nr-vehiculo').value='';
+    document.getElementById('nr-auxiliar').value='';
+    resetI('nr-b20','nr-b10','nr-b3');
+    showToast('✅ Ruta creada');
+    await abrirRuta(res[0].id);
+  }catch(e){hideLoading();alert('Error: '+e.message);}
+}
+
+async function abrirRuta(id){
+  showLoading('Abriendo ruta...');
+  try{
+    const rutas=await sbGet('rutas',`id=eq.${id}&select=*`);
+    rutaActivaData=rutas[0];
+    rutaActivaId=id;
+    document.getElementById('ra-titulo').textContent=rutaActivaData.conductor.toUpperCase();
+    document.getElementById('ra-subtitulo').textContent=(rutaActivaData.vehiculo||'Sin vehículo')+' · '+rutaActivaData.fecha;
+    hideLoading();
+    switchTab('tab-recargue');
+    showScreen('screen-ruta-activa');
+  }catch(e){hideLoading();alert('Error: '+e.message);}
+}
+
+// ===== RECARGUES =====
+async function cargarRecargues(){
+  if(!rutaActivaId)return;
+  try{
+    const recs=await sbGet('recargues',`ruta_id=eq.${rutaActivaId}&order=created_at.asc`);
+    const div=document.getElementById('recargues-lista');
+    if(!recs.length){div.innerHTML='';return;}
+    div.innerHTML=recs.map((r,i)=>`
+      <div class="recargue-badge">🔄 Recargue ${i+1} · ${r.hora||''}
+        <span style="color:var(--text-mid);font-weight:400;">
+          ${r.b20>0?` ${r.b20}×20`:''}${r.b10>0?` ${r.b10}×10`:''}${r.b3>0?` ${r.b3}×3`:''}
+        </span>
+      </div>`).join('');
+  }catch(e){console.error(e);}
+}
+
+function mostrarFormRecargue(){
+  resetI('rec-b20','rec-b10','rec-b3');
+  document.getElementById('form-recargue').style.display='block';
+}
+
+async function confirmarRecargue(){
+  const b20=getI('rec-b20'),b10=getI('rec-b10'),b3=getI('rec-b3');
+  if(b20+b10+b3===0){alert('Ingresa al menos una bolsa');return;}
+  showLoading('Guardando recargue...');
+  try{
+    const hora=new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+    await sbPost('recargues',{ruta_id:rutaActivaId,b20,b10,b3,hora});
+    document.getElementById('form-recargue').style.display='none';
+    resetI('rec-b20','rec-b10','rec-b3');
+    hideLoading();
+    showToast('✅ Recargue guardado');
+    cargarRecargues();
+  }catch(e){hideLoading();alert('Error: '+e.message);}
+}
+
+// ===== VENTAS =====
+async function cargarVentas(){
+  if(!rutaActivaId)return;
+  try{
+    const ventas=await sbGet('ventas',`ruta_id=eq.${rutaActivaId}&order=created_at.asc`);
+    renderVentas(ventas);
+  }catch(e){console.error(e);}
+}
+
+function renderVentas(ventas){
+  const lista=document.getElementById('lista-ventas');
+  if(!ventas.length){lista.innerHTML='<div class="empty"><div class="empty-icon">🧾</div>Sin ventas aún.</div>';return;}
+  lista.innerHTML=ventas.map(e=>{
+    const det=[e.b20>0?`${e.b20}×20kg`:'',e.b10>0?`${e.b10}×10kg`:'',e.b3>0?`${e.b3}×3kg`:''].filter(Boolean).join(' · ');
+    const fp=e.forma_pago||'efectivo';
+    const fpLabel={'efectivo':'💵 EFECTIVO','transferencia':'🏦 TRANSF.','fiado':'⏳ FIADO'}[fp]||fp.toUpperCase();
+    const fpClass={'efectivo':'tipo-efectivo','transferencia':'tipo-transferencia','fiado':'tipo-fiado'}[fp]||'tipo-efectivo';
+    return`<div class="entrega-item">
+      <div class="entrega-header">
+        <div class="entrega-cliente">${e.cliente}</div>
+        <div class="entrega-tipo ${fpClass}">${fpLabel}</div>
+      </div>
+      <div class="entrega-detalle">${det}${e.tipo_cliente?' · '+e.tipo_cliente:''}</div>
+      ${e.nota?`<div class="entrega-detalle" style="margin-top:4px;font-style:italic;">📝 ${e.nota}</div>`:''}
+      <div class="entrega-monto">${fmt(e.precio)}${e.debe>0?` · Debe: ${fmt(e.debe)}`:''}</div>
+      <div class="entrega-actions">
+        <button class="btn-edit" onclick="editarVenta('${e.id}')">✏️ Editar</button>
+        <button class="btn-del" onclick="eliminarVenta('${e.id}')">🗑 Eliminar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function guardarVenta(){
+  const editId=document.getElementById('e-edit-id').value;
+  const cliente=document.getElementById('e-cliente').value.trim();
+  const b20=getI('e-b20'),b10=getI('e-b10'),b3=getI('e-b3');
+  const precio=getTotalCalc();
+  if(!cliente){alert('Ingresa el nombre del cliente');return;}
+  if(b20+b10+b3===0){alert('Selecciona al menos una bolsa');return;}
+  if(precio===0){alert('Ingresa el precio por unidad');return;}
+  const abono=pagoSeleccionado==='fiado'?(parseFloat(document.getElementById('e-abono').value)||0):precio;
+  const data={
+    ruta_id:rutaActivaId,cliente,
+    tipo_cliente:document.getElementById('e-tipo-cliente').value,
+    b20,b10,b3,
+    p20:parseFloat(document.getElementById('p-20').value)||0,
+    p10:parseFloat(document.getElementById('p-10').value)||0,
+    p3:parseFloat(document.getElementById('p-3').value)||0,
+    precio,forma_pago:pagoSeleccionado,
+    abono:pagoSeleccionado!=='fiado'?precio:abono,
+    debe:pagoSeleccionado==='fiado'?(precio-abono):0,
+    nota:document.getElementById('e-nota').value.trim()
+  };
+  showLoading('Guardando venta...');
+  try{
+    if(editId){await sbPatch('ventas',editId,data);cancelarEdicion();}
+    else{await sbPost('ventas',data);resetFormVenta();}
+    hideLoading();showToast('✅ Venta guardada');
+    cargarVentas();
+  }catch(e){hideLoading();alert('Error: '+e.message);}
+}
+
+function resetFormVenta(){
+  ['e-cliente','e-nota','e-abono','p-20','p-10','p-3'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('e-tipo-cliente').value='';
+  resetI('e-b20','e-b10','e-b3');
+  document.getElementById('total-calc').textContent='$0';
+  document.getElementById('e-edit-id').value='';
+  selPago('efectivo');
+}
+
+async function editarVenta(id){
+  try{
+    const rows=await sbGet('ventas',`id=eq.${id}`);
+    const e=rows[0];
+    document.getElementById('e-edit-id').value=id;
+    document.getElementById('e-cliente').value=e.cliente;
+    document.getElementById('e-tipo-cliente').value=e.tipo_cliente||'';
+    document.getElementById('e-b20').value=e.b20;
+    document.getElementById('e-b10').value=e.b10;
+    document.getElementById('e-b3').value=e.b3;
+    document.getElementById('p-20').value=e.p20||'';
+    document.getElementById('p-10').value=e.p10||'';
+    document.getElementById('p-3').value=e.p3||'';
+    document.getElementById('e-nota').value=e.nota||'';
+    calcularTotal();
+    selPago(e.forma_pago||'efectivo');
+    if(e.forma_pago==='fiado')document.getElementById('e-abono').value=e.abono||'';
+    document.getElementById('form-entrega-titulo').textContent='✏️ EDITANDO VENTA';
+    document.getElementById('btn-guardar-entrega').textContent='💾 GUARDAR CAMBIOS';
+    document.getElementById('btn-cancelar-edicion').style.display='block';
+    document.getElementById('form-entrega-card').classList.add('editando');
+    window.scrollTo(0,0);
+  }catch(e){alert('Error: '+e.message);}
+}
+
+function cancelarEdicion(){
+  resetFormVenta();
+  document.getElementById('form-entrega-titulo').textContent='NUEVA VENTA';
+  document.getElementById('btn-guardar-entrega').textContent='+ REGISTRAR VENTA';
+  document.getElementById('btn-cancelar-edicion').style.display='none';
+  document.getElementById('form-entrega-card').classList.remove('editando');
+}
+
+async function eliminarVenta(id){
+  if(!confirm('¿Eliminar esta venta?'))return;
+  showLoading('Eliminando...');
+  try{await sbDelete('ventas',id);hideLoading();showToast('🗑 Venta eliminada');cargarVentas();}
+  catch(e){hideLoading();alert('Error: '+e.message);}
+}
+
+// ===== GASTOS =====
+async function cargarGastosUI(){
+  if(!rutaActivaId)return;
+  try{
+    const gastos=await sbGet('gastos',`ruta_id=eq.${rutaActivaId}&order=created_at.asc`);
+    const div=document.getElementById('gastos-list');
+    div.innerHTML='';
+    gastos.forEach(g=>{
+      const row=document.createElement('div');row.className='gasto-row';
+      row.innerHTML=`<input type="text" value="${g.descripcion||''}" placeholder="Descripción">
+        <input type="number" value="${g.valor||0}" placeholder="$" inputmode="numeric">
+        <button class="remove-btn" onclick="eliminarGasto('${g.id}',this)">×</button>`;
+      div.appendChild(row);
+    });
+    // Actualizar devoluciones
+    if(rutaActivaData){
+      document.getElementById('dev-b20').value=rutaActivaData.dev_b20||0;
+      document.getElementById('dev-b10').value=rutaActivaData.dev_b10||0;
+      document.getElementById('dev-b3').value=rutaActivaData.dev_b3||0;
+    }
+  }catch(e){console.error(e);}
+}
+
+function agregarGastoUI(){
+  const div=document.createElement('div');div.className='gasto-row';
+  div.innerHTML=`<input type="text" placeholder="Descripción (ej: gasolina)">
+    <input type="number" placeholder="$" inputmode="numeric">
+    <button class="remove-btn" onclick="this.parentElement.remove()">×</button>`;
+  document.getElementById('gastos-list').appendChild(div);
+}
+
+async function guardarGastos(){
+  showLoading('Guardando gastos...');
+  try{
+    // Eliminar gastos existentes y reinsertar
+    const existing=await sbGet('gastos',`ruta_id=eq.${rutaActivaId}&select=id`);
+    for(const g of existing)await sbDelete('gastos',g.id);
+    const rows=document.querySelectorAll('#gastos-list .gasto-row');
+    for(const row of rows){
+      const inputs=row.querySelectorAll('input');
+      const val=parseFloat(inputs[1].value)||0;
+      if(val>0)await sbPost('gastos',{ruta_id:rutaActivaId,descripcion:inputs[0].value,valor:val});
+    }
+    hideLoading();showToast('✅ Gastos guardados');
+  }catch(e){hideLoading();alert('Error: '+e.message);}
+}
+
+async function eliminarGasto(id,btn){
+  try{await sbDelete('gastos',id);btn.parentElement.remove();showToast('🗑 Gasto eliminado');}
+  catch(e){alert('Error: '+e.message);}
+}
+
+async function guardarDevoluciones(){
+  showLoading('Guardando devoluciones...');
+  try{
+    await sbPatch('rutas',rutaActivaId,{dev_b20:getI('dev-b20'),dev_b10:getI('dev-b10'),dev_b3:getI('dev-b3')});
+    rutaActivaData.dev_b20=getI('dev-b20');
+    rutaActivaData.dev_b10=getI('dev-b10');
+    rutaActivaData.dev_b3=getI('dev-b3');
+    hideLoading();showToast('✅ Devoluciones guardadas');
+  }catch(e){hideLoading();alert('Error: '+e.message);}
+}
+
+// ===== COBROS CARTERA RUTA =====
+async function cargarCobrosRuta(){
+  if(!rutaActivaId)return;
+  try{
+    const cobros=await sbGet('cobros_cartera',`ruta_id=eq.${rutaActivaId}&order=created_at.asc`);
+    const lista=document.getElementById('lista-cobros-ruta');
+    if(!cobros.length){lista.innerHTML='<div class="empty"><div class="empty-icon">💰</div>Sin cobros de cartera.</div>';return;}
+    lista.innerHTML=cobros.map(c=>`
+      <div class="cobro-card">
+        <div class="cobro-header">
+          <div class="cobro-cliente">${c.cliente}</div>
+          <div class="cobro-monto-badge">${fmt(c.valor)}</div>
+        </div>
+        ${c.nota?`<div class="cobro-meta">📝 ${c.nota}</div>`:''}
+        ${c.es_global?`<div class="cobro-meta" style="color:var(--cyan);">↩️ Cobro cartera global</div>`:''}
+      </div>`).join('');
+  }catch(e){console.error(e);}
+}
+
+async function agregarCobroCartera(){
+  const cliente=document.getElementById('cr-cliente').value.trim();
+  const valor=parseFloat(document.getElementById('cr-valor').value)||0;
+  if(!cliente){alert('Ingresa el nombre del cliente');return;}
+  if(!valor){alert('Ingresa el valor cobrado');return;}
+  showLoading('Guardando cobro...');
+  try{
+    await sbPost('cobros_cartera',{ruta_id:rutaActivaId,cliente,valor,nota:document.getElementById('cr-nota').value.trim(),es_global:false});
+    document.getElementById('cr-cliente').value='';
+    document.getElementById('cr-valor').value='';
+    document.getElementById('cr-nota').value='';
+    hideLoading();showToast('✅ Cobro registrado');
+    cargarCobrosRuta();
+  }catch(e){hideLoading();alert('Error: '+e.message);}
+}
+
+// ===== RESUMEN =====
+async function cargarResumen(){
+  if(!rutaActivaId)return;
+  try{
+    const [ventas,recargues,gastos,cobros,rutaRows]=await Promise.all([
+      sbGet('ventas',`ruta_id=eq.${rutaActivaId}`),
+      sbGet('recargues',`ruta_id=eq.${rutaActivaId}&order=created_at.asc`),
+      sbGet('gastos',`ruta_id=eq.${rutaActivaId}`),
+      sbGet('cobros_cartera',`ruta_id=eq.${rutaActivaId}`),
+      sbGet('rutas',`id=eq.${rutaActivaId}`)
+    ]);
+    const ruta=rutaRows[0];
+    const totalVentas=ventas.reduce((s,e)=>s+Number(e.precio),0);
+    const totalEfectivo=ventas.filter(e=>e.forma_pago==='efectivo'||(!e.forma_pago)).reduce((s,e)=>s+Number(e.abono),0);
+    const totalTransf=ventas.filter(e=>e.forma_pago==='transferencia').reduce((s,e)=>s+Number(e.precio),0);
+    const totalFiados=ventas.reduce((s,e)=>s+Number(e.debe),0);
+    const totalGastos=gastos.reduce((s,g)=>s+Number(g.valor),0);
+    const totalCartera=cobros.reduce((s,c)=>s+Number(c.valor),0);
+
+    const bV20=ventas.reduce((s,e)=>s+e.b20,0),bV10=ventas.reduce((s,e)=>s+e.b10,0),bV3=ventas.reduce((s,e)=>s+e.b3,0);
+    const recB20=recargues.reduce((s,r)=>s+r.b20,0),recB10=recargues.reduce((s,r)=>s+r.b10,0),recB3=recargues.reduce((s,r)=>s+r.b3,0);
+    const tot20=(ruta.salida_b20||0)+recB20,tot10=(ruta.salida_b10||0)+recB10,tot3=(ruta.salida_b3||0)+recB3;
+    const dev20=ruta.dev_b20||0,dev10=ruta.dev_b10||0,dev3=ruta.dev_b3||0;
+
+    document.getElementById('res-total-ventas').textContent=fmt(totalVentas);
+    document.getElementById('res-num-ventas').textContent=ventas.length;
+    document.getElementById('res-efectivo').textContent=fmt(totalEfectivo);
+    document.getElementById('res-transferencia').textContent=fmt(totalTransf);
+    document.getElementById('res-fiados').textContent=fmt(totalFiados);
+    document.getElementById('res-cartera-stat').textContent=fmt(totalCartera);
+    document.getElementById('res-salidas').textContent=`${ruta.salida_b20||0}×20 · ${ruta.salida_b10||0}×10 · ${ruta.salida_b3||0}×3`;
+
+    // Recargues discriminados
+    const recDiv=document.getElementById('res-recargues-rows');
+    if(!recargues.length){
+      recDiv.innerHTML=`<div class="highlight-row"><span class="hl-label">Recargues</span><span class="hl-val" style="color:var(--text-light)">—</span></div>`;
+    }else{
+      recDiv.innerHTML=recargues.map((r,i)=>`
+        <div class="highlight-row">
+          <span class="hl-label">Recargue ${i+1} <span style="font-size:11px;color:var(--text-light);">(${r.hora||''})</span></span>
+          <span class="hl-val" style="color:var(--cyan)">${[r.b20>0?`${r.b20}×20`:'',r.b10>0?`${r.b10}×10`:'',r.b3>0?`${r.b3}×3`:''].filter(Boolean).join(' · ')}</span>
+        </div>`).join('');
+    }
+
+    document.getElementById('res-total-disp').textContent=`${tot20}×20 · ${tot10}×10 · ${tot3}×3`;
+    document.getElementById('res-vendidas').textContent=`${bV20}×20 · ${bV10}×10 · ${bV3}×3`;
+    document.getElementById('res-devoluciones').textContent=`${dev20}×20 · ${dev10}×10 · ${dev3}×3`;
+    document.getElementById('res-sobrantes').textContent=`${Math.max(0,tot20-bV20-dev20)}×20 · ${Math.max(0,tot10-bV10-dev10)}×10 · ${Math.max(0,tot3-bV3-dev3)}×3`;
+
+    // Ventas por precio
+    const precioMap={};
+    ventas.forEach(e=>{
+      if(e.b20>0){const k=`20-${e.p20||0}`;if(!precioMap[k])precioMap[k]={pres:'20 KG',precio:e.p20||0,qty:0,total:0};precioMap[k].qty+=e.b20;precioMap[k].total+=e.b20*(e.p20||0);}
+      if(e.b10>0){const k=`10-${e.p10||0}`;if(!precioMap[k])precioMap[k]={pres:'10 KG',precio:e.p10||0,qty:0,total:0};precioMap[k].qty+=e.b10;precioMap[k].total+=e.b10*(e.p10||0);}
+      if(e.b3>0){const k=`3-${e.p3||0}`;if(!precioMap[k])precioMap[k]={pres:'3 KG',precio:e.p3||0,qty:0,total:0};precioMap[k].qty+=e.b3;precioMap[k].total+=e.b3*(e.p3||0);}
+    });
+    const pDiv=document.getElementById('res-precios-agrupados');
+    if(!Object.keys(precioMap).length){pDiv.innerHTML='<div style="font-size:13px;color:var(--text-light);">Sin ventas.</div>';}
+    else{pDiv.innerHTML=Object.values(precioMap).sort((a,b)=>b.total-a.total).map(g=>`
+      <div class="precio-group">
+        <div class="pg-header"><span class="pg-precio">${g.pres} · ${fmt(g.precio)}/u</span><span class="pg-total">${fmt(g.total)}</span></div>
+        <div class="pg-bolsas">${fmt(g.precio)} × ${g.qty} bolsa${g.qty!==1?'s':''} = ${fmt(g.total)}</div>
+      </div>`).join('');}
+
+    // Fiados
+    const fiados=ventas.filter(e=>e.debe>0);
+    const fDiv=document.getElementById('res-fiados-tabla');
+    if(!fiados.length){fDiv.innerHTML='<div style="font-size:13px;color:var(--text-light);">Sin fiados.</div>';}
+    else{fDiv.innerHTML=`<table class="fiados-table"><tr><th>Cliente</th><th>Detalle</th><th style="text-align:right">Debe</th></tr>
+      ${fiados.map(e=>{const det=[e.b20>0?`${e.b20}×20`:'',e.b10>0?`${e.b10}×10`:'',e.b3>0?`${e.b3}×3`:''].filter(Boolean).join(' ');
+        return`<tr><td><div class="td-cliente">${e.cliente}</div><div class="td-det">${e.tipo_cliente||''}</div></td>
+          <td class="td-det">${det}${e.nota?`<br>📝${e.nota}`:''}</td><td class="td-monto">${fmt(e.debe)}</td></tr>`;}).join('')}
+      </table>`;}
+
+    // Cobros
+    const crDiv=document.getElementById('res-cobros-lista');
+    if(!cobros.length){crDiv.innerHTML='<div style="font-size:13px;color:var(--text-light);">Sin cobros.</div>';}
+    else{crDiv.innerHTML=cobros.map(c=>`
+      <div class="highlight-row">
+        <span class="hl-label">${c.cliente}${c.es_global?' <span style="color:var(--cyan);font-size:11px;">↩️global</span>':''}${c.nota?` <span style="font-size:11px;color:var(--text-light);">- ${c.nota}</span>`:''}</span>
+        <span class="hl-val" style="color:var(--success)">${fmt(c.valor)}</span>
+      </div>`).join('');}
+
+    document.getElementById('res-ef2').textContent=fmt(totalEfectivo);
+    document.getElementById('res-transf2').textContent=fmt(totalTransf);
+    document.getElementById('res-cart2').textContent=fmt(totalCartera);
+    document.getElementById('res-gastos-total').textContent=fmt(totalGastos);
+    document.getElementById('res-consignar').textContent=fmt(Math.max(0,totalEfectivo+totalCartera-totalGastos));
+    document.getElementById('res-ya-consignado').textContent=fmt(totalTransf);
+  }catch(e){console.error(e);}
+}
+
+async function cerrarRuta(){
+  if(!confirm('¿Cerrar y liquidar esta ruta?'))return;
+  showLoading('Cerrando ruta...');
+  try{
+    await sbPatch('rutas',rutaActivaId,{estado:'cerrada'});
+    rutaActivaId=null;rutaActivaData=null;
+    hideLoading();showToast('✅ Ruta liquidada');
+    navTo('screen-inicio');
+  }catch(e){hideLoading();alert('Error: '+e.message);}
+}
+
+// ===== CARTERA GLOBAL =====
+async function cargarCarteraGlobal(){
+  try{
+    const ventas=await sbGet('ventas',`debe=gt.0&select=*,rutas(conductor,fecha)`);
+    const total=ventas.filter(v=>!v.cobrado).reduce((s,v)=>s+Number(v.debe),0);
+    document.getElementById('cartera-total').textContent=fmt(total);
+    const lista=document.getElementById('cartera-lista');
+    if(!ventas.length){lista.innerHTML='<div class="empty"><div class="empty-icon">💰</div>Sin fiados pendientes.</div>';return;}
+    // Obtener rutas activas para el selector de conductor
+    const rutasActivas=await sbGet('rutas',`estado=eq.activa&select=id,conductor`);
+    const condOpts=rutasActivas.map(r=>`<option value="${r.id}">${r.conductor}</option>`).join('');
+    lista.innerHTML=ventas.map(v=>{
+      const det=[v.b20>0?`${v.b20}×20kg`:'',v.b10>0?`${v.b10}×10kg`:'',v.b3>0?`${v.b3}×3kg`:''].filter(Boolean).join(' · ');
+      const conductor=v.rutas?v.rutas.conductor:'—';
+      const fecha=v.rutas?v.rutas.fecha:'—';
+      return`<div class="cartera-item ${v.cobrado?'cartera-cobrada':''}" id="ci-${v.id}">
+        <div class="cartera-header">
+          <div class="cartera-cliente">${v.cliente}</div>
+          <div class="cartera-debe">${v.cobrado?'✅ COBRADO':fmt(v.debe)}</div>
+        </div>
+        <div class="cartera-meta">${det}${v.tipo_cliente?' · '+v.tipo_cliente:''}<br>Ruta: ${conductor} · ${fecha}
+          ${v.abono>0&&!v.cobrado?`<div class="abono-badge">Abonó ${fmt(v.abono)}</div>`:''}
+          ${v.nota?`<br><span style="font-style:italic;">📝 ${v.nota}</span>`:''}
+        </div>
+        ${!v.cobrado?`
+        <div style="margin-bottom:8px;">
+          <label style="margin-bottom:4px;">Conductor que cobró</label>
+          ${condOpts?`<select id="cond-${v.id}">${condOpts}</select>`:'<p style="font-size:12px;color:var(--text-light);margin-bottom:8px;">No hay rutas activas.</p>'}
+        </div>
+        <div class="cobro-row">
+          <input type="number" id="cobro-${v.id}" placeholder="$ Monto cobrado" inputmode="numeric">
+          <button class="cobro-btn" onclick="registrarCobroGlobal('${v.id}')">COBRAR</button>
+        </div>`:''}
+      </div>`;
+    }).join('');
+  }catch(e){console.error(e);}
+}
+
+async function registrarCobroGlobal(ventaId){
+  const input=document.getElementById('cobro-'+ventaId);
+  const monto=parseFloat(input.value)||0;
+  if(!monto){alert('Ingresa el monto cobrado');return;}
+  showLoading('Registrando cobro...');
+  try{
+    const rows=await sbGet('ventas',`id=eq.${ventaId}`);
+    const venta=rows[0];
+    const condSel=document.getElementById('cond-'+ventaId);
+    const rutaConductorId=condSel?condSel.value:null;
+
+    // Registrar cobro en la ruta del conductor
+    if(rutaConductorId){
+      await sbPost('cobros_cartera',{
+        ruta_id:rutaConductorId,cliente:venta.cliente,valor:monto,
+        nota:`Cartera de ruta anterior`,es_global:true
+      });
+    }
+    // Actualizar saldo
+    if(monto>=venta.debe){
+      await sbPatch('ventas',ventaId,{cobrado:true,debe:0,abono:venta.precio});
+    }else{
+      await sbPatch('ventas',ventaId,{abono:Number(venta.abono)+monto,debe:Number(venta.debe)-monto});
+    }
+    hideLoading();showToast('✅ Cobro registrado');
+    cargarCarteraGlobal();
+  }catch(e){hideLoading();alert('Error: '+e.message);}
+}
+
+// ===== GERENCIAL =====
+async function cargarGerencial(){
+  try{
+    const fecha=fechaCorta();
+    const [ventas,rutas]=await Promise.all([
+      sbGet('ventas',`select=*,rutas!inner(fecha,estado,conductor)`),
+      sbGet('rutas',`fecha=eq.${encodeURIComponent(fecha)}&select=*`)
+    ]);
+    const hoyVentas=ventas.filter(v=>v.rutas&&v.rutas.fecha===fecha);
+    document.getElementById('g-ventas-total').textContent=fmt(hoyVentas.reduce((s,e)=>s+Number(e.precio),0));
+    document.getElementById('g-cobrado').textContent=fmt(hoyVentas.reduce((s,e)=>s+Number(e.abono),0));
+    document.getElementById('g-fiados').textContent=fmt(hoyVentas.reduce((s,e)=>s+Number(e.debe),0));
+    document.getElementById('g-rutas-activas').textContent=rutas.filter(r=>r.estado==='activa').length;
+    document.getElementById('g-b20').textContent=hoyVentas.reduce((s,e)=>s+e.b20,0);
+    document.getElementById('g-b10').textContent=hoyVentas.reduce((s,e)=>s+e.b10,0);
+    document.getElementById('g-b3').textContent=hoyVentas.reduce((s,e)=>s+e.b3,0);
+
+    const canales={};
+    hoyVentas.forEach(e=>{const c=e.tipo_cliente||'Sin clasificar';if(!canales[c])canales[c]={total:0,count:0};canales[c].total+=Number(e.precio);canales[c].count++;});
+    const cDiv=document.getElementById('g-por-canal');
+    if(!Object.keys(canales).length){cDiv.innerHTML='<div class="empty" style="padding:20px 0;">Sin datos hoy</div>';}
+    else{cDiv.innerHTML=Object.entries(canales).sort((a,b)=>b[1].total-a[1].total)
+      .map(([c,d])=>`<div class="highlight-row"><span class="hl-label">${c} <span style="color:var(--text-light);font-size:11px;">(${d.count})</span></span><span class="hl-val" style="color:var(--cyan)">${fmt(d.total)}</span></div>`).join('');}
+
+    const gL=document.getElementById('g-lista-rutas');
+    if(!rutas.length){gL.innerHTML='<div class="empty" style="padding:20px 0;">Sin rutas hoy</div>';}
+    else{
+      const ventasPorRuta={};
+      hoyVentas.forEach(v=>{if(!ventasPorRuta[v.ruta_id])ventasPorRuta[v.ruta_id]=0;ventasPorRuta[v.ruta_id]+=Number(v.abono);});
+      gL.innerHTML=rutas.map(r=>`
+        <div class="highlight-row">
+          <span class="hl-label">${r.conductor} <span class="ruta-status ${r.estado==='activa'?'status-activa':'status-cerrada'}" style="font-size:9px;padding:2px 6px;margin-left:4px;">${r.estado==='activa'?'EN RUTA':'CERRADA'}</span></span>
+          <span class="hl-val" style="color:var(--success)">${fmt(ventasPorRuta[r.id]||0)}</span>
+        </div>`).join('');
+    }
+  }catch(e){console.error(e);}
+}
+
+// ===== INIT =====
+async function init(){
+  const f=hoy();
+  document.getElementById('headerFecha').textContent=fechaCorta();
+  document.getElementById('subtituloFecha').textContent=f.charAt(0).toUpperCase()+f.slice(1);
+  document.getElementById('gerencial-fecha').textContent=f;
+  selPago('efectivo');
+  try{
+    await cargarRutas();
+    hideLoading();
+    setSyncDot(true);
+  }catch(e){
+    hideLoading();
+    setSyncDot(false);
+    document.getElementById('listadoRutas').innerHTML='<div class="empty"><div class="empty-icon">⚠️</div>Sin conexión. Verifica tu internet.</div>';
+  }
+}
+init();
+</script>
+</body>
+</html>
