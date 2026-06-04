@@ -1,23 +1,5 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "api/alegra.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "antartica-rutas.html",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/alegra(.*)",
-      "dest": "/api/alegra.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/antartica-rutas.html"
-    }
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" }
   ]
 }
