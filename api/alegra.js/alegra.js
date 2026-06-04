@@ -25,9 +25,15 @@ module.exports = async (req, res) => {
       },
       body: body ? JSON.stringify(body) : undefined,
     });
-    const data = await fetchRes.json();
-    return res.status(fetchRes.status).json(data);
+    const text = await fetchRes.text();
+    console.log('ALEGRA RESPONSE:', fetchRes.status, text);
+    try {
+      return res.status(fetchRes.status).json(JSON.parse(text));
+    } catch(e) {
+      return res.status(fetchRes.status).send(text);
+    }
   } catch (err) {
+    console.log('FETCH ERROR:', err.message);
     return res.status(500).json({ error: err.message });
   }
 };
