@@ -964,6 +964,14 @@
       </div>
       <div id="paradas-lista"><div class="empty"><div class="empty-icon">📍</div>Sin paradas agregadas.</div></div>
     </div>
+    <div class="card">
+      <div class="card-title">📍 PARADAS SIN ASIGNAR — el más cercano la acepta</div>
+      <input type="text" id="rt-pool-buscar-cliente" placeholder="🔍 Agregar cliente a la bolsa de paradas..." oninput="buscarClienteParaPoolRuta(this.value)" autocomplete="off">
+      <div id="rt-pool-resultados-busqueda" style="margin-top:6px;"></div>
+      <div id="rt-pool-paradas-lista" style="margin-top:10px;">
+        <div style="font-size:12px;color:var(--text-light);text-align:center;padding:12px 0;">Sin paradas pendientes por asignar.</div>
+      </div>
+    </div>
   </div>
 
   <!-- TAB: RESUMEN -->
@@ -4037,7 +4045,7 @@ function switchTab(tab){
   if(tab==='tab-recargue'){cargarRecargues();cargarDevoluciones();}
   if(tab==='tab-ventas'){cargarVentas();cargarMiniStatsRuta();poblarDatalistClientesVenta();}
   if(tab==='tab-gastos'){cargarGastosUI();cargarMiniStatsRuta();}
-  if(tab==='tab-paradas')cargarParadas();
+  if(tab==='tab-paradas'){cargarParadas();cargarParadasPool('rt-pool-paradas-lista');}
 }
 
 // Alimenta el autocompletar de "Cliente" en Ventas con los clientes ya
@@ -8351,21 +8359,28 @@ function _detenerRefrescoMapaRuta(){
 //  por nombre de usuario vs. el conductor de la ruta, igual que el
 //  GPS en vivo — así nadie puede aceptarla "a nombre de otro").
 // ═══════════════════════════════════════════════════════════════
-var _poolBusquedaTimeout=null;
+// La bolsa aparece en DOS lugares: la pantalla principal del módulo Ruta
+// (prefix "pool") y dentro de "Paradas" de una ruta ya abierta (prefix
+// "poolrt"). Se comparte la misma lógica; cada copia usa sus propios IDs
+// de DOM para no chocar entre sí.
+var _poolTimers={};
 var _poolUbicacionActual=null;
 
-function buscarClienteParaPool(texto){
-  clearTimeout(_poolBusquedaTimeout);
-  const cont=document.getElementById('pool-resultados-busqueda');
+function buscarClienteParaPool(texto){_buscarClienteParaPoolCore(texto,{resultsId:'pool-resultados-busqueda',prefixBase:'pool',addFnName:'agregarParadaPool'});}
+function buscarClienteParaPoolRuta(texto){_buscarClienteParaPoolCore(texto,{resultsId:'rt-pool-resultados-busqueda',prefixBase:'poolrt',addFnName:'agregarParadaPoolRuta'});}
+
+function _buscarClienteParaPoolCore(texto,cfg){
+  clearTimeout(_poolTimers[cfg.prefixBase]);
+  const cont=document.getElementById(cfg.resultsId);
   if(!cont)return;
   if(!texto||texto.trim().length<2){cont.innerHTML='';return;}
-  _poolBusquedaTimeout=setTimeout(async()=>{
+  _poolTimers[cfg.prefixBase]=setTimeout(async()=>{
     if(!todosLosClientes.length)await cargarClientes().catch(()=>{});
     const t=texto.trim().toLowerCase();
     const matches=todosLosClientes.filter(c=>(c.nombre||'').toLowerCase().includes(t)).slice(0,8);
     if(!matches.length){cont.innerHTML='<div style="font-size:12px;color:var(--text-light);padding:6px 0;">Sin resultados.</div>';return;}
     cont.innerHTML=matches.map(c=>{
-      const prefix='pool-'+c.id;
+      const prefix=cfg.prefixBase+'-'+c.id;
       return `
       <div style="background:rgba(0,153,204,.06);border:1px solid rgba(0,153,204,.15);border-radius:8px;padding:8px 10px;margin-bottom:6px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -8374,23 +8389,26 @@ function buscarClienteParaPool(texto){
         </div>
         <div id="${prefix}-panel" style="display:none;">
           ${_detallePedidoFormHTML(prefix)}
-          <button onclick="agregarParadaPool('${c.id}')" style="margin-top:6px;width:100%;background:var(--success);border:none;color:#fff;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">✅ Guardar en la bolsa</button>
+          <button onclick="${cfg.addFnName}('${c.id}')" style="margin-top:6px;width:100%;background:var(--success);border:none;color:#fff;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">✅ Guardar en la bolsa</button>
         </div>
       </div>`;
     }).join('');
   },250);
 }
 
-async function agregarParadaPool(clienteId){
+async function agregarParadaPool(clienteId){await _agregarParadaPoolCore(clienteId,{prefixBase:'pool',inputId:'pool-buscar-cliente',resultsId:'pool-resultados-busqueda',listId:'pool-paradas-lista'});}
+async function agregarParadaPoolRuta(clienteId){await _agregarParadaPoolCore(clienteId,{prefixBase:'poolrt',inputId:'rt-pool-buscar-cliente',resultsId:'rt-pool-resultados-busqueda',listId:'rt-pool-paradas-lista'});}
+
+async function _agregarParadaPoolCore(clienteId,cfg){
   const c=todosLosClientes.find(x=>x.id===clienteId);
   if(!c)return;
-  const detalle=_leerDetallePedido('pool-'+clienteId);
+  const detalle=_leerDetallePedido(cfg.prefixBase+'-'+clienteId);
   try{
     await sbPost('pedidos_ruta',{ruta_id:null,cliente_id:c.id,cliente_nombre:c.nombre,direccion:c.direccion,lat:c.lat,lng:c.lng,orden:0,estado:'pendiente',...detalle});
     showToast('✅ Parada agregada a la bolsa');
-    const input=document.getElementById('pool-buscar-cliente');if(input)input.value='';
-    const res=document.getElementById('pool-resultados-busqueda');if(res)res.innerHTML='';
-    cargarParadasPool();
+    const input=document.getElementById(cfg.inputId);if(input)input.value='';
+    const res=document.getElementById(cfg.resultsId);if(res)res.innerHTML='';
+    cargarParadasPool(cfg.listId);
   }catch(e){showToast('Error: '+e.message);}
 }
 
@@ -8402,8 +8420,10 @@ function _distanciaKm(lat1,lng1,lat2,lng2){
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
-async function cargarParadasPool(){
-  const cont=document.getElementById('pool-paradas-lista');
+async function cargarParadasPool(contId){
+  contId=contId||'pool-paradas-lista';
+  const enRuta=contId==='rt-pool-paradas-lista';
+  const cont=document.getElementById(contId);
   if(!cont)return;
   try{
     const paradas=await sbGet('pedidos_ruta','ruta_id=is.null&estado=eq.pendiente&order=created_at.asc');
@@ -8429,6 +8449,7 @@ async function cargarParadasPool(){
       return {...p,_dist:dist};
     });
     if(_poolUbicacionActual)items.sort((a,b)=>(a._dist??999)-(b._dist??999));
+    const aceptarFn=enRuta?'aceptarParadaPoolRuta':'aceptarParadaPool';
     cont.innerHTML=items.map(p=>`
       <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.03);border:1px solid rgba(123,189,232,.15);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
         <div>
@@ -8437,7 +8458,7 @@ async function cargarParadasPool(){
           ${_resumenPedido(p)?`<div style="font-size:11px;color:var(--text-mid);margin-top:2px;">📦 ${_resumenPedido(p)}</div>`:''}
           ${p._dist!=null?`<div style="font-size:11px;color:var(--cyan);font-weight:700;margin-top:2px;">📍 ~${p._dist.toFixed(1)} km de ti</div>`:''}
         </div>
-        <button onclick="aceptarParadaPool('${p.id}')" style="background:var(--success);border:none;color:#fff;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">✅ Aceptar</button>
+        <button onclick="${aceptarFn}('${p.id}')" style="background:var(--success);border:none;color:#fff;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">✅ Aceptar</button>
       </div>`).join('');
   }catch(e){cont.innerHTML='<div style="font-size:12px;color:var(--danger);">Error: '+e.message+'</div>';}
 }
@@ -8452,16 +8473,31 @@ async function _miRutaActivaId(){
   }catch(e){return null;}
 }
 
+// Desde la pantalla principal (no hay ruta abierta todavía): se verifica
+// que quien acepta sea el conductor asignado de alguna ruta activa.
 async function aceptarParadaPool(paradaId){
   const miRutaId=await _miRutaActivaId();
   if(!miRutaId){showToast('⚠️ No tienes una ruta activa a tu nombre todavía. Ábrela/créala primero.');return;}
   if(!confirm('¿Aceptar esta parada y agregarla a tu ruta activa?'))return;
+  await _asignarParadaARuta(paradaId,miRutaId,'pool-paradas-lista');
+}
+
+// Desde dentro de "Paradas" de una ruta ya abierta: se asigna directo a
+// esa ruta (ya sabemos cuál es porque la tienes abierta en pantalla).
+async function aceptarParadaPoolRuta(paradaId){
+  if(!rutaActivaId){showToast('⚠️ No hay una ruta activa abierta.');return;}
+  if(!confirm('¿Aceptar esta parada y agregarla a esta ruta?'))return;
+  await _asignarParadaARuta(paradaId,rutaActivaId,'rt-pool-paradas-lista');
+  cargarParadas();
+}
+
+async function _asignarParadaARuta(paradaId,rutaId,listId){
   try{
-    const existentes=await sbGet('pedidos_ruta',`ruta_id=eq.${miRutaId}`);
+    const existentes=await sbGet('pedidos_ruta',`ruta_id=eq.${rutaId}`);
     const siguienteOrden=existentes.length?Math.max(...existentes.map(p=>p.orden||0))+1:1;
-    await sbPatch('pedidos_ruta',paradaId,{ruta_id:miRutaId,orden:siguienteOrden});
-    showToast('✅ Parada asignada a tu ruta');
-    cargarParadasPool();
+    await sbPatch('pedidos_ruta',paradaId,{ruta_id:rutaId,orden:siguienteOrden});
+    showToast('✅ Parada asignada a la ruta');
+    cargarParadasPool(listId);
   }catch(e){showToast('Error: '+e.message);}
 }
 
