@@ -8804,6 +8804,24 @@ function activarUbicacionManual(){
 
 // Refleja el estado del GPS junto al nombre del conductor:
 // null = sin intentar, true = transmitiendo, false = error/permiso denegado.
+// Al iniciar sesión o reabrir la app (con la sesión ya guardada), si el
+// usuario es un conductor con una ruta activa a su nombre, se activa el
+// GPS automáticamente — sin que tenga que entrar a la ruta ni tocar
+// "Activar ubicación" a mano. Se llama desde irAlPrimerModulo(), que
+// corre tanto al iniciar sesión como al reabrir la app con sesión guardada.
+async function _autoIniciarGPSSiHayRutaActiva(){
+  try{
+    const u=getCurrentUser();
+    if(!u||u.rol!=='ruta')return; // solo conductores necesitan GPS automático
+    if(!('geolocation' in navigator))return;
+    const activas=await sbGet('rutas','estado=eq.activa&select=*');
+    const mia=activas.find(r=>_normNombre(r.conductor)===_normNombre(u.nombre));
+    if(!mia)return;
+    if(!rutaActivaId){rutaActivaId=mia.id;rutaActivaData=mia;}
+    iniciarTrackingGPS();
+  }catch(e){console.warn('Auto-GPS:',e.message);}
+}
+
 function _actualizarBadgeGPS(estado,errMsg){
   const badge=document.getElementById('gps-estado-badge');
   const btn=document.getElementById('btn-activar-gps');
@@ -9812,6 +9830,7 @@ function irAlPrimerModulo(){
     }
   }
   navTo(destino);
+  _autoIniciarGPSSiHayRutaActiva().catch(()=>{});
 }
 
 async function init(){
