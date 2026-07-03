@@ -2616,6 +2616,11 @@
     <div><div style="font-weight:700;color:var(--text);">Facturación</div><div style="font-size:12px;color:var(--text-light);">Historial de facturas — contado y fiado</div></div>
     <span style="margin-left:auto;color:var(--text-light);font-size:20px;">›</span>
   </div>
+  <div class="card" onclick="showScreen('screen-admin-mapa');abrirMapaAdmin();" style="cursor:pointer;display:flex;align-items:center;gap:14px;margin-bottom:10px;">
+    <span style="font-size:26px;">🗺️</span>
+    <div><div style="font-weight:700;color:var(--text);">Mapa de conductores</div><div style="font-size:12px;color:var(--text-light);">Ubicación en vivo de todas las rutas activas</div></div>
+    <span style="margin-left:auto;color:var(--text-light);font-size:20px;">›</span>
+  </div>
   <div class="card" style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
     <span style="font-size:26px;">👤</span>
     <div style="flex:1;">
@@ -2629,6 +2634,17 @@
     <div><div style="font-weight:700;color:var(--text);">Gestionar usuarios</div><div style="font-size:12px;color:var(--text-light);">Usuarios, contraseñas y permisos de módulos</div></div>
     <span style="margin-left:auto;color:var(--text-light);font-size:20px;">›</span>
   </div>
+</div>
+
+<!-- ══════════════ ADMIN: MAPA DE TODOS LOS CONDUCTORES ══════════════ -->
+<div class="screen" id="screen-admin-mapa">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;">
+    <button onclick="navTo('screen-admin')" style="background:rgba(0,153,204,.1);border:1px solid rgba(0,153,204,.3);color:var(--cyan);border-radius:10px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;">← Volver</button>
+    <div class="section-title" style="margin-bottom:0;">MAPA DE CONDUCTORES</div>
+  </div>
+  <div id="mapa-admin-status" style="font-size:11px;color:var(--text-light);margin-bottom:8px;">Cargando rutas activas...</div>
+  <div id="mapa-admin-el" style="width:100%;height:60vh;border-radius:12px;background:var(--bg2);margin-bottom:12px;"></div>
+  <div id="mapa-admin-lista"></div>
 </div>
 
 
@@ -2752,6 +2768,7 @@ function navTo(id){
 
 function showScreen(id){
   if(id!=='screen-mapa-ruta'){try{_detenerRefrescoMapaRuta();}catch(e){}}
+  if(id!=='screen-admin-mapa'){try{_detenerRefrescoMapaAdmin();}catch(e){}}
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   const el=document.getElementById(id);
   if(el)el.classList.add('active');
@@ -8797,6 +8814,108 @@ async function _actualizarMarcadorConductor(map){
 
 function _detenerRefrescoMapaRuta(){
   if(_gpsRefrescoMapaId){clearInterval(_gpsRefrescoMapaId);_gpsRefrescoMapaId=null;}
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MAPA ADMIN — ubicación en vivo de TODAS las rutas activas
+//  a la vez (no depende de tener una ruta abierta).
+// ═══════════════════════════════════════════════════════════════
+var _mapaAdminInstance=null;
+var _gpsRefrescoMapaAdminId=null;
+var _driverMarkersAdmin={}; // ruta_id -> marker
+
+async function abrirMapaAdmin(){
+  showLoading('Cargando conductores activos...');
+  try{
+    await _cargarLeaflet();
+    hideLoading();
+    if(_mapaAdminInstance){_mapaAdminInstance.remove();_mapaAdminInstance=null;}
+    _driverMarkersAdmin={};
+    const contenedor=document.getElementById('mapa-admin-el');
+    const map=L.map('mapa-admin-el').setView([4.6097,-74.0817],11); // fallback: Bogotá
+    _mapaAdminInstance=map;
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
+    await _refrescarMapaAdmin(map);
+    if(_gpsRefrescoMapaAdminId)clearInterval(_gpsRefrescoMapaAdminId);
+    _gpsRefrescoMapaAdminId=setInterval(()=>_refrescarMapaAdmin(map),15000);
+  }catch(e){hideLoading();showToast('Error cargando mapa: '+e.message);}
+}
+
+async function _refrescarMapaAdmin(map){
+  const badge=document.getElementById('mapa-admin-status');
+  const lista=document.getElementById('mapa-admin-lista');
+  try{
+    const rutas=await sbGet('rutas',`estado=eq.activa&select=id,conductor,vehiculo`);
+    if(!rutas.length){
+      if(badge)badge.textContent='No hay rutas activas en este momento.';
+      if(lista)lista.innerHTML='<div class="empty" style="padding-top:20px;"><div class="empty-icon">🚚</div>Ninguna ruta activa ahora mismo.</div>';
+      Object.values(_driverMarkersAdmin).forEach(m=>map.removeLayer(m));
+      _driverMarkersAdmin={};
+      return;
+    }
+    const ids=rutas.map(r=>r.id).join(',');
+    const ubicaciones=await sbGet('ubicacion_conductor',`ruta_id=in.(${ids})`).catch(()=>[]);
+    const ubicPorRuta={};
+    ubicaciones.forEach(u=>{ubicPorRuta[u.ruta_id]=u;});
+    const idsVivos=new Set();
+    const bounds=[];
+    let conUbicacion=0;
+    rutas.forEach(r=>{
+      const u=ubicPorRuta[r.id];
+      if(!u||!u.lat||!u.lng)return;
+      conUbicacion++;
+      idsVivos.add(r.id);
+      bounds.push([u.lat,u.lng]);
+      const icon=L.divIcon({
+        className:'',
+        html:'<div style="background:#0099cc;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.5);border:3px solid #fff;font-size:15px;">🚚</div>',
+        iconSize:[32,32],iconAnchor:[16,16]
+      });
+      const hora=new Date(u.actualizado_at).toLocaleTimeString('es-CO');
+      const popup=`<b>🚚 ${r.conductor||'Conductor'}</b><br>${r.vehiculo||''}<br><small>Actualizado: ${hora}</small>`;
+      if(_driverMarkersAdmin[r.id]){
+        _driverMarkersAdmin[r.id].setLatLng([u.lat,u.lng]);
+        _driverMarkersAdmin[r.id].setPopupContent(popup);
+      }else{
+        _driverMarkersAdmin[r.id]=L.marker([u.lat,u.lng],{icon}).addTo(map).bindPopup(popup);
+      }
+    });
+    // quita marcadores de rutas que ya no están activas o sin ubicación
+    Object.keys(_driverMarkersAdmin).forEach(rid=>{
+      if(!idsVivos.has(rid)&&!idsVivos.has(Number(rid))){
+        map.removeLayer(_driverMarkersAdmin[rid]);
+        delete _driverMarkersAdmin[rid];
+      }
+    });
+    if(bounds.length){
+      if(bounds.length===1)map.setView(bounds[0],14);
+      else map.fitBounds(bounds,{padding:[40,40]});
+    }
+    if(badge){
+      badge.textContent=conUbicacion
+        ?`🚚 ${conUbicacion} de ${rutas.length} ruta(s) activa(s) con ubicación en vivo`
+        :`${rutas.length} ruta(s) activa(s), ninguna con señal GPS todavía`;
+    }
+    if(lista){
+      lista.innerHTML=rutas.map(r=>{
+        const u=ubicPorRuta[r.id];
+        const tieneGps=u&&u.lat&&u.lng;
+        const hora=tieneGps?new Date(u.actualizado_at).toLocaleTimeString('es-CO'):null;
+        return `<div class="card" style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:8px;">
+          <span style="font-size:20px;">${tieneGps?'🟢':'⚪'}</span>
+          <div style="flex:1;">
+            <div style="font-weight:700;color:var(--text);font-size:13px;">${r.conductor||'Conductor'}</div>
+            <div style="font-size:11px;color:var(--text-light);">${r.vehiculo||''} ${tieneGps?'· actualizado '+hora:'· sin señal GPS'}</div>
+          </div>
+          ${tieneGps?`<button onclick="_mapaAdminInstance.setView([${u.lat},${u.lng}],15)" style="background:rgba(0,153,204,.1);border:1px solid rgba(0,153,204,.3);color:var(--cyan);border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;">📍 Ver</button>`:''}
+        </div>`;
+      }).join('');
+    }
+  }catch(e){if(badge)badge.textContent='Error: '+e.message;}
+}
+
+function _detenerRefrescoMapaAdmin(){
+  if(_gpsRefrescoMapaAdminId){clearInterval(_gpsRefrescoMapaAdminId);_gpsRefrescoMapaAdminId=null;}
 }
 
 // ═══════════════════════════════════════════════════════════════
