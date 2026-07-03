@@ -4966,7 +4966,15 @@ async function abrirRuta(id){
     switchTab('tab-recargue');
     showScreen('screen-ruta-activa');
     cargarHeroRutaActiva();
-    try{iniciarTrackingGPS();}catch(e){console.warn('GPS:',e.message);}
+    try{
+      // GPS en vivo: solo debe mandar su ubicación el conductor asignado a ESTA ruta,
+      // no cualquiera que entre a verla (ej. el administrador revisando el progreso).
+      detenerTrackingGPS();
+      const u=getCurrentUser();
+      if(u&&rutaActivaData&&_normNombre(u.nombre)===_normNombre(rutaActivaData.conductor)){
+        iniciarTrackingGPS();
+      }
+    }catch(e){console.warn('GPS:',e.message);}
   }catch(e){hideLoading();alert('Error: '+e.message);}
 }
 
@@ -8194,6 +8202,13 @@ var _gpsUltimoEnvio=0;
 var GPS_INTERVALO_MS=20000;
 var _gpsRefrescoMapaId=null;
 var _driverMarker=null;
+
+// Normaliza nombres para comparar "Brayam Gómelo" con "brayam gomelo" sin
+// falsos negativos por acentos, mayúsculas o espacios extra.
+var _RE_DIACRITICOS=new RegExp('['+String.fromCharCode(0x0300)+'-'+String.fromCharCode(0x036f)+']','g');
+function _normNombre(s){
+  return (s||'').toString().normalize('NFD').replace(_RE_DIACRITICOS,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+}
 
 function iniciarTrackingGPS(){
   if(!rutaActivaId)return;
