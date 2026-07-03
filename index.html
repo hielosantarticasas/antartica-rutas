@@ -793,8 +793,8 @@
       <div class="card-title" id="form-entrega-titulo">NUEVA VENTA</div>
       <input type="hidden" id="e-edit-id" value="">
       <label>Cliente / Lugar</label>
-      <input type="text" id="e-cliente" placeholder="Escribe para buscar un cliente ya registrado" list="dl-clientes-venta" autocomplete="off">
-      <datalist id="dl-clientes-venta"></datalist>
+      <input type="text" id="e-cliente" placeholder="Escribe para buscar un cliente ya registrado" autocomplete="off" oninput="buscarClienteParaVenta(this.value)" onfocus="buscarClienteParaVenta(this.value)" onblur="setTimeout(()=>{const el=document.getElementById('venta-cliente-resultados');if(el)el.innerHTML='';},250)">
+      <div id="venta-cliente-resultados" style="margin-bottom:6px;"></div>
       <div style="font-size:11px;margin-top:-4px;margin-bottom:10px;">
         <span style="color:var(--text-light);">¿Cliente nuevo? </span>
         <span onclick="irACrearClienteDesdeVenta()" style="color:var(--cyan);font-weight:700;cursor:pointer;text-decoration:underline;">Créalo aquí primero</span>
@@ -4178,6 +4178,42 @@ async function poblarDatalistClientesVenta(){
   }catch(e){console.warn('No se pudo cargar el listado de clientes:',e.message);}
 }
 
+// Dropdown de selección de cliente para "Nueva venta" — obliga a elegir un
+// cliente ya registrado (o crear uno nuevo) en vez de escribir libremente,
+// para evitar nombres duplicados/mal escritos en la cartera y facturación.
+var _ventaClienteBuscarTimer=null;
+function buscarClienteParaVenta(texto){
+  clearTimeout(_ventaClienteBuscarTimer);
+  _ventaClienteBuscarTimer=setTimeout(async()=>{
+    const el=document.getElementById('venta-cliente-resultados');
+    if(!el)return;
+    const t=(texto||'').trim().toLowerCase();
+    if(!t){el.innerHTML='';return;}
+    if(!todosLosClientes.length)await cargarClientes();
+    const encontrados=todosLosClientes.filter(c=>(c.nombre||'').toLowerCase().includes(t)).slice(0,8);
+    if(!encontrados.length){
+      el.innerHTML='<div style="font-size:12px;color:var(--warning);padding:8px 10px;background:var(--warning-bg);border-radius:8px;margin-top:2px;">Sin coincidencias. <span onclick="irACrearClienteDesdeVenta()" style="color:var(--cyan);font-weight:700;cursor:pointer;text-decoration:underline;">Crear cliente nuevo</span></div>';
+      return;
+    }
+    el.innerHTML='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:2px;">'+
+      encontrados.map(c=>`
+        <div onclick="_seleccionarClienteVenta('${c.id}')" style="padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;">
+          <div style="font-size:13px;font-weight:600;">${c.nombre}</div>
+          ${c.direccion?`<div style="font-size:11px;color:var(--text-light);">${c.direccion}</div>`:''}
+        </div>`).join('')+
+      '</div>';
+  },200);
+}
+function _seleccionarClienteVenta(id){
+  const c=todosLosClientes.find(x=>x.id===id);
+  if(!c)return;
+  const inp=document.getElementById('e-cliente');
+  inp.value=c.nombre;
+  inp.dataset.clienteId=c.id;
+  const el=document.getElementById('venta-cliente-resultados');
+  if(el)el.innerHTML='';
+}
+
 function irACrearClienteDesdeVenta(){
   prepFormCliente();
   showScreen('screen-nuevo-cliente');
@@ -5592,6 +5628,8 @@ async function guardarVenta(){
 
 function resetFormVenta(){
   ['e-cliente','e-nota','e-abono','p-20','p-10','p-3'].forEach(id=>document.getElementById(id).value='');
+  const ecl=document.getElementById('e-cliente');if(ecl)delete ecl.dataset.clienteId;
+  const eclRes=document.getElementById('venta-cliente-resultados');if(eclRes)eclRes.innerHTML='';
   document.getElementById('e-tipo-cliente').value='';
   resetI('e-b20','e-b10','e-b3');
   ['r-b20','r-b10','r-b3','c-b20','c-b10','c-b3'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='0';});
@@ -5606,7 +5644,11 @@ async function editarVenta(id){
     const rows=await sbGet('ventas',`id=eq.${id}`);
     const e=rows[0];
     document.getElementById('e-edit-id').value=id;
-    document.getElementById('e-cliente').value=e.cliente;
+    const eclEdit=document.getElementById('e-cliente');
+    eclEdit.value=e.cliente;
+    if(!todosLosClientes.length)await cargarClientes();
+    const clMatch=todosLosClientes.find(c=>(c.nombre||'').trim().toLowerCase()===(e.cliente||'').trim().toLowerCase());
+    if(clMatch)eclEdit.dataset.clienteId=clMatch.id;else delete eclEdit.dataset.clienteId;
     document.getElementById('e-tipo-cliente').value=e.tipo_cliente||'';
     document.getElementById('e-b20').value=e.b20;
     document.getElementById('e-b10').value=e.b10;
@@ -8878,9 +8920,20 @@ async function cargarParadasPool(contId){
         <div style="display:flex;gap:6px;">
           ${p.lat&&p.lng?`<button onclick="_abrirGoogleMaps(${p.lat},${p.lng})" title="Ir en Google Maps" style="background:rgba(0,153,204,.15);border:1px solid rgba(0,153,204,.35);color:var(--cyan);border-radius:8px;padding:8px 10px;font-size:14px;cursor:pointer;white-space:nowrap;">🧭</button>`:''}
           <button onclick="${aceptarFn}('${p.id}')" style="background:var(--success);border:none;color:#fff;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">✅ Aceptar</button>
+          <button onclick="eliminarParadaPool('${p.id}','${contId}')" title="Eliminar" style="background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#ef4444;border-radius:8px;padding:8px 10px;font-size:14px;cursor:pointer;white-space:nowrap;">✕</button>
         </div>
       </div>`).join('');
   }catch(e){cont.innerHTML='<div style="font-size:12px;color:var(--danger);">Error: '+e.message+'</div>';}
+}
+
+async function eliminarParadaPool(id,listId){
+  if(!confirm('¿Eliminar esta parada/pedido de la bolsa? Esta acción no se puede deshacer.'))return;
+  try{
+    await sbDelete('pedidos_ruta',id);
+    delete _poolItemsCache[id];
+    showToast('🗑 Parada eliminada de la bolsa');
+    cargarParadasPool(listId);
+  }catch(e){showToast('Error: '+e.message);}
 }
 
 async function _miRutaActivaId(){
