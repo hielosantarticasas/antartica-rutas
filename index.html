@@ -960,7 +960,10 @@
     <div class="card">
       <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
         <span>PARADAS (<span id="paradas-count">0</span>)</span>
-        <button onclick="abrirMapaRuta()" style="background:rgba(0,153,204,.1);border:1px solid rgba(0,153,204,.3);color:var(--cyan);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;">📍 Ver mapa</button>
+        <div style="display:flex;gap:6px;">
+          <button onclick="_abrirRutaCompletaGoogleMaps()" style="background:rgba(0,153,204,.1);border:1px solid rgba(0,153,204,.3);color:var(--cyan);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;">🧭 Ruta completa</button>
+          <button onclick="abrirMapaRuta()" style="background:rgba(0,153,204,.1);border:1px solid rgba(0,153,204,.3);color:var(--cyan);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;">📍 Ver mapa</button>
+        </div>
       </div>
       <div id="paradas-lista"><div class="empty"><div class="empty-icon">📍</div>Sin paradas agregadas.</div></div>
     </div>
@@ -9009,6 +9012,23 @@ function _abrirGoogleMaps(lat,lng,nombre){
   if(!lat||!lng){showToast('Esta parada no tiene coordenadas GPS guardadas.');return;}
   const url=`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
   window.open(url,'_blank');
+}
+
+// Abre TODAS las paradas pendientes de la ruta activa en un solo trayecto
+// de Google Maps (como "waypoints"), en el orden en que están en la app,
+// en vez de abrir cada una por separado. Usa la ubicación actual del
+// celular como punto de partida (Google Maps la asume si no se indica
+// origen). Límite práctico de Google Maps: ~23 paradas intermedias.
+function _abrirRutaCompletaGoogleMaps(){
+  const paradas=(_paradasCache||[]).filter(p=>p.lat&&p.lng&&p.estado!=='entregado');
+  if(!paradas.length){showToast('No hay paradas pendientes con ubicación GPS guardada.');return;}
+  if(paradas.length===1){_abrirGoogleMaps(paradas[0].lat,paradas[0].lng);return;}
+  const limitadas=paradas.slice(0,23);
+  const destino=limitadas[limitadas.length-1];
+  const waypoints=limitadas.slice(0,-1).map(p=>`${p.lat},${p.lng}`).join('|');
+  const url=`https://www.google.com/maps/dir/?api=1&destination=${destino.lat},${destino.lng}&waypoints=${encodeURIComponent(waypoints)}&travelmode=driving`;
+  window.open(url,'_blank');
+  if(paradas.length>23)showToast('⚠️ Google Maps solo admite hasta 23 paradas intermedias por trayecto; se abrieron las primeras 23.');
 }
 
 let _poolItemsCache={};
