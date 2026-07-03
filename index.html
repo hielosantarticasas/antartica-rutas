@@ -9063,6 +9063,8 @@ async function cargarParadasPool(contId){
     if(_poolUbicacionActual)items.sort((a,b)=>(a._dist??999)-(b._dist??999));
     items.forEach(p=>{_poolItemsCache[p.id]=p;});
     const aceptarFn=enRuta?'aceptarParadaPoolRuta':'aceptarParadaPool';
+    const u=getCurrentUser();
+    const esAdmin=u&&u.rol==='admin';
     cont.innerHTML=items.map(p=>`
       <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.03);border:1px solid rgba(123,189,232,.15);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
         <div>
@@ -9071,8 +9073,9 @@ async function cargarParadasPool(contId){
           ${_resumenPedido(p)?`<div style="font-size:11px;color:var(--text-mid);margin-top:2px;">📦 ${_resumenPedido(p)}</div>`:''}
           ${p._dist!=null?`<div style="font-size:11px;color:var(--cyan);font-weight:700;margin-top:2px;">📍 ~${p._dist.toFixed(1)} km de ti</div>`:''}
         </div>
-        <div style="display:flex;gap:6px;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
           ${p.lat&&p.lng?`<button onclick="_abrirGoogleMaps(${p.lat},${p.lng})" title="Ir en Google Maps" style="background:rgba(0,153,204,.15);border:1px solid rgba(0,153,204,.35);color:var(--cyan);border-radius:8px;padding:8px 10px;font-size:14px;cursor:pointer;white-space:nowrap;">🧭</button>`:''}
+          ${esAdmin?`<button onclick="abrirModalAsignarConductor('${p.id}','${contId}')" title="Asignar a un conductor específico" style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);color:#f59e0b;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📌 Asignar</button>`:''}
           <button onclick="${aceptarFn}('${p.id}')" style="background:var(--success);border:none;color:#fff;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">✅ Aceptar</button>
           <button onclick="eliminarParadaPool('${p.id}','${contId}')" title="Eliminar" style="background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#ef4444;border-radius:8px;padding:8px 10px;font-size:14px;cursor:pointer;white-space:nowrap;">✕</button>
         </div>
@@ -9118,17 +9121,59 @@ async function aceptarParadaPoolRuta(paradaId){
   cargarParadas();
 }
 
-async function _asignarParadaARuta(paradaId,rutaId,listId){
+async function _asignarParadaARuta(paradaId,rutaId,listId,abrirNav=true){
   try{
     const existentes=await sbGet('pedidos_ruta',`ruta_id=eq.${rutaId}`);
     const siguienteOrden=existentes.length?Math.max(...existentes.map(p=>p.orden||0))+1:1;
     await sbPatch('pedidos_ruta',paradaId,{ruta_id:rutaId,orden:siguienteOrden});
     showToast('✅ Parada asignada a la ruta');
-    // Al aceptar, abrir Google Maps navegando directo hacia la parada.
+    // Al aceptar (el propio conductor), abrir Google Maps navegando directo
+    // hacia la parada. Cuando el admin asigna a otro conductor desde el
+    // modal de asignación no tiene sentido abrir Maps en su propio celular.
     const p=_poolItemsCache[paradaId];
-    if(p&&p.lat&&p.lng)_abrirGoogleMaps(p.lat,p.lng);
+    if(abrirNav&&p&&p.lat&&p.lng)_abrirGoogleMaps(p.lat,p.lng);
     cargarParadasPool(listId);
   }catch(e){showToast('Error: '+e.message);}
+}
+
+// ── Admin: asignar una parada de la bolsa a un conductor específico ──
+// (en vez de dejar que cualquiera la acepte por cercanía/orden de llegada)
+var _paradaAsignarId=null;
+var _paradaAsignarListId=null;
+async function abrirModalAsignarConductor(paradaId,listId){
+  _paradaAsignarId=paradaId;
+  _paradaAsignarListId=listId;
+  const modal=document.getElementById('modal-asignar-conductor');
+  const lista=document.getElementById('modal-asignar-lista');
+  if(!modal||!lista)return;
+  modal.style.display='flex';
+  lista.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-light);">Cargando conductores activos...</div>';
+  try{
+    const rutas=await sbGet('rutas','estado=eq.activa&select=id,conductor,vehiculo&order=conductor.asc');
+    if(!rutas.length){
+      lista.innerHTML='<div class="empty" style="padding-top:10px;"><div class="empty-icon">🚚</div>No hay ninguna ruta activa ahora mismo.</div>';
+      return;
+    }
+    lista.innerHTML=rutas.map(r=>`
+      <button onclick="_confirmarAsignacionConductor('${r.id}')" style="width:100%;text-align:left;display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer;color:var(--text);">
+        <span style="font-size:20px;">🚚</span>
+        <div>
+          <div style="font-weight:700;font-size:14px;">${r.conductor||'Sin nombre'}</div>
+          <div style="font-size:11px;color:var(--text-light);">${r.vehiculo||''}</div>
+        </div>
+      </button>`).join('');
+  }catch(e){lista.innerHTML='<div style="color:var(--danger);font-size:12px;">Error: '+e.message+'</div>';}
+}
+function cerrarModalAsignarConductor(){
+  const modal=document.getElementById('modal-asignar-conductor');
+  if(modal)modal.style.display='none';
+  _paradaAsignarId=null;_paradaAsignarListId=null;
+}
+async function _confirmarAsignacionConductor(rutaId){
+  if(!_paradaAsignarId)return;
+  const paradaId=_paradaAsignarId,listId=_paradaAsignarListId;
+  cerrarModalAsignarConductor();
+  await _asignarParadaARuta(paradaId,rutaId,listId,false);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -9764,6 +9809,18 @@ async function init(){
 
 init().catch(e=>{hideLoading();setSyncDot(false);console.error('Init error:',e);});
 </script>
+
+<!-- ═══ MODAL ASIGNAR PARADA A CONDUCTOR (admin) ═══ -->
+<div id="modal-asignar-conductor" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:10003;overflow-y:auto;padding:20px;align-items:flex-start;justify-content:center;">
+  <div style="max-width:420px;width:100%;margin:40px auto;background:var(--surface);border-radius:20px;padding:24px;border:1px solid var(--border-accent);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;">📌 ASIGNAR A CONDUCTOR</div>
+      <button onclick="cerrarModalAsignarConductor()" style="background:rgba(255,59,80,.1);border:1px solid rgba(255,59,80,.3);color:var(--danger);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;">✕ Cerrar</button>
+    </div>
+    <div style="font-size:12px;color:var(--text-light);margin-bottom:14px;">Elige a qué conductor con ruta activa se le asigna esta parada:</div>
+    <div id="modal-asignar-lista"></div>
+  </div>
+</div>
 
 <!-- Modal foto factura -->
 <div id="modal-foto-factura" onclick="cerrarModalFoto()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;align-items:center;justify-content:center;padding:20px;">
