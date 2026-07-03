@@ -618,6 +618,10 @@
       <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:1px;" id="ra-titulo">RUTA</div>
       <div style="font-size:11px;color:var(--text-light);" id="ra-subtitulo"></div>
     </div>
+    <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+      <button id="btn-activar-gps" onclick="activarUbicacionManual()" style="background:rgba(0,153,204,.12);border:1px solid rgba(0,153,204,.35);color:var(--cyan);border-radius:10px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">📍 Activar ubicación</button>
+      <span id="gps-estado-badge" style="font-size:10px;font-weight:700;"></span>
+    </div>
   </div>
 
   <!-- HERO financiero de la ruta -->
@@ -8763,17 +8767,18 @@ function _normNombre(s){
 
 function iniciarTrackingGPS(){
   if(!rutaActivaId)return;
-  if(!('geolocation' in navigator)){console.warn('Este navegador no soporta geolocalización');return;}
+  if(!('geolocation' in navigator)){showToast('⚠️ Este dispositivo no tiene GPS disponible.');return;}
   if(_gpsWatchId!==null)return; // ya está corriendo
   _gpsUltimoEnvio=0;
   _gpsWatchId=navigator.geolocation.watchPosition(
     pos=>{
+      _actualizarBadgeGPS(true);
       const ahora=Date.now();
       if(ahora-_gpsUltimoEnvio<GPS_INTERVALO_MS)return;
       _gpsUltimoEnvio=ahora;
       _enviarUbicacionConductor(pos.coords.latitude,pos.coords.longitude);
     },
-    err=>{console.warn('GPS:',err.message);},
+    err=>{console.warn('GPS:',err.message);_actualizarBadgeGPS(false,err.message);},
     {enableHighAccuracy:false,maximumAge:15000,timeout:20000}
   );
 }
@@ -8782,6 +8787,39 @@ function detenerTrackingGPS(){
   if(_gpsWatchId!==null){
     try{navigator.geolocation.clearWatch(_gpsWatchId);}catch(e){}
     _gpsWatchId=null;
+  }
+  _actualizarBadgeGPS(null);
+}
+
+// Botón manual "Activar ubicación" en el header de la ruta: útil cuando el
+// nombre del usuario logueado no coincide exactamente con el conductor de
+// la ruta (por eso no se activó sola) o cuando el conductor negó el permiso
+// la primera vez y quiere intentarlo de nuevo.
+function activarUbicacionManual(){
+  if(!rutaActivaId){showToast('No hay una ruta activa abierta.');return;}
+  if(!('geolocation' in navigator)){showToast('⚠️ Este dispositivo no tiene GPS disponible.');return;}
+  showToast('📍 Activando ubicación en vivo...');
+  iniciarTrackingGPS();
+}
+
+// Refleja el estado del GPS junto al nombre del conductor:
+// null = sin intentar, true = transmitiendo, false = error/permiso denegado.
+function _actualizarBadgeGPS(estado,errMsg){
+  const badge=document.getElementById('gps-estado-badge');
+  const btn=document.getElementById('btn-activar-gps');
+  if(!badge)return;
+  if(estado===true){
+    badge.textContent='🟢 Ubicación activa';
+    badge.style.color='#4ade80';
+    if(btn)btn.style.display='none';
+  }else if(estado===false){
+    const denegado=(errMsg||'').toLowerCase().includes('denied');
+    badge.textContent=denegado?'⚠️ Permiso de ubicación denegado':'⚠️ No se pudo activar el GPS';
+    badge.style.color='#f87171';
+    if(btn)btn.style.display='inline-flex';
+  }else{
+    badge.textContent='';
+    if(btn)btn.style.display='inline-flex';
   }
 }
 
