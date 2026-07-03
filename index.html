@@ -8640,10 +8640,18 @@ async function agregarParadaCliente(clienteId){
   const detalle=_leerDetallePedido('prc-'+clienteId);
   showLoading('Agregando parada...');
   try{
+    let lat=c.lat||null,lng=c.lng||null;
+    if((!lat||!lng)&&c.direccion){
+      // El cliente aún no tiene coordenadas (p. ej. se acaba de crear y la
+      // geocodificación en segundo plano no ha terminado). Geocodificamos
+      // aquí mismo para que la parada no quede sin ubicación en el mapa.
+      const coords=await geocodificarDireccion(c.direccion).catch(()=>null);
+      if(coords){lat=coords.lat;lng=coords.lng;sbPatch('clientes',c.id,{lat,lng,geocoded:true}).catch(()=>{});}
+    }
     const maxOrden=_paradasCache.reduce((m,p)=>Math.max(m,p.orden||0),0);
     await sbPost('pedidos_ruta',{
       ruta_id:rutaActivaId,cliente_id:c.id,cliente_nombre:c.nombre,
-      direccion:c.direccion||null,lat:c.lat||null,lng:c.lng||null,
+      direccion:c.direccion||null,lat,lng,
       orden:maxOrden+1,estado:'pendiente',...detalle
     });
     document.getElementById('parada-buscar-cliente').value='';
@@ -8972,7 +8980,14 @@ async function _agregarParadaPoolCore(clienteId,cfg){
   if(!c)return;
   const detalle=_leerDetallePedido(cfg.prefixBase+'-'+clienteId);
   try{
-    await sbPost('pedidos_ruta',{ruta_id:null,cliente_id:c.id,cliente_nombre:c.nombre,direccion:c.direccion,lat:c.lat,lng:c.lng,orden:0,estado:'pendiente',...detalle});
+    let lat=c.lat||null,lng=c.lng||null;
+    if((!lat||!lng)&&c.direccion){
+      // Igual que en agregarParadaCliente: evita paradas "huérfanas" sin
+      // coordenadas cuando el cliente se acaba de crear.
+      const coords=await geocodificarDireccion(c.direccion).catch(()=>null);
+      if(coords){lat=coords.lat;lng=coords.lng;sbPatch('clientes',c.id,{lat,lng,geocoded:true}).catch(()=>{});}
+    }
+    await sbPost('pedidos_ruta',{ruta_id:null,cliente_id:c.id,cliente_nombre:c.nombre,direccion:c.direccion,lat,lng,orden:0,estado:'pendiente',...detalle});
     showToast('✅ Parada agregada a la bolsa');
     const input=document.getElementById(cfg.inputId);if(input)input.value='';
     const res=document.getElementById(cfg.resultsId);if(res)res.innerHTML='';
