@@ -8069,6 +8069,7 @@ function renderParadasLista(paradas){
         <div style="flex:1;">
           <div style="font-weight:700;font-size:13px;">${i+1}. ${p.cliente_nombre||'Sin nombre'}</div>
           <div style="font-size:11px;color:var(--text-light);margin-top:2px;">${p.direccion||'Sin dirección'}</div>
+          ${_resumenPedido(p)?`<div style="font-size:11px;color:var(--text-mid);margin-top:2px;">📦 ${_resumenPedido(p)}</div>`:''}
           <div style="font-size:11px;font-weight:700;margin-top:4px;color:${est.color};">${est.label}</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
@@ -8084,6 +8085,50 @@ function renderParadasLista(paradas){
   }).join('');
 }
 
+// ── Detalle del pedido (cantidad de bolsas por presentación + precio) ──
+// Se usa tanto al agregar una parada dentro de una ruta como al agregarla
+// a la bolsa sin asignar. Es opcional: se puede dejar en 0 y completarlo
+// después directamente en Ventas cuando se entregue.
+function _detallePedidoFormHTML(prefix){
+  return `
+    <div style="background:rgba(0,153,204,.06);border:1px solid rgba(0,153,204,.2);border-radius:10px;padding:10px;margin-top:6px;">
+      <div style="font-size:11px;color:var(--text-light);margin-bottom:6px;">📦 Detalle del pedido (opcional)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px;">
+        <div><label style="font-size:10px;color:var(--text-light);">Bolsas 20kg</label><input type="number" min="0" id="${prefix}-b20" value="0" oninput="_recalcPrecioParada('${prefix}')" style="width:100%;margin-bottom:0;"></div>
+        <div><label style="font-size:10px;color:var(--text-light);">Bolsas 10kg</label><input type="number" min="0" id="${prefix}-b10" value="0" oninput="_recalcPrecioParada('${prefix}')" style="width:100%;margin-bottom:0;"></div>
+        <div><label style="font-size:10px;color:var(--text-light);">Bolsas 3kg</label><input type="number" min="0" id="${prefix}-b3" value="0" oninput="_recalcPrecioParada('${prefix}')" style="width:100%;margin-bottom:0;"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px;">
+        <div><label style="font-size:10px;color:var(--text-light);">$ x 20kg</label><input type="number" min="0" id="${prefix}-p20" value="0" oninput="_recalcPrecioParada('${prefix}')" style="width:100%;margin-bottom:0;"></div>
+        <div><label style="font-size:10px;color:var(--text-light);">$ x 10kg</label><input type="number" min="0" id="${prefix}-p10" value="0" oninput="_recalcPrecioParada('${prefix}')" style="width:100%;margin-bottom:0;"></div>
+        <div><label style="font-size:10px;color:var(--text-light);">$ x 3kg</label><input type="number" min="0" id="${prefix}-p3" value="0" oninput="_recalcPrecioParada('${prefix}')" style="width:100%;margin-bottom:0;"></div>
+      </div>
+      <div style="font-size:13px;font-weight:700;color:var(--cyan);" id="${prefix}-total">Total: ${fmt(0)}</div>
+    </div>`;
+}
+function _recalcPrecioParada(prefix){
+  const g=id=>Number(document.getElementById(prefix+'-'+id)?.value||0);
+  const total=g('b20')*g('p20')+g('b10')*g('p10')+g('b3')*g('p3');
+  const el=document.getElementById(prefix+'-total');
+  if(el)el.textContent='Total: '+fmt(total);
+}
+function _leerDetallePedido(prefix){
+  const g=id=>Number(document.getElementById(prefix+'-'+id)?.value||0);
+  return {b20:g('b20'),b10:g('b10'),b3:g('b3'),p20:g('p20'),p10:g('p10'),p3:g('p3'),precio:g('b20')*g('p20')+g('b10')*g('p10')+g('b3')*g('p3')};
+}
+function _toggleDetalleParada(prefix){
+  const panel=document.getElementById(prefix+'-panel');
+  if(panel)panel.style.display=panel.style.display==='none'?'block':'none';
+}
+function _resumenPedido(p){
+  const partes=[];
+  if(p.b20>0)partes.push(`${p.b20}×20kg`);
+  if(p.b10>0)partes.push(`${p.b10}×10kg`);
+  if(p.b3>0)partes.push(`${p.b3}×3kg`);
+  if(!partes.length)return '';
+  return partes.join(' · ')+(p.precio?` · ${fmt(p.precio)}`:'');
+}
+
 let _paradaBuscarTimer=null;
 function buscarClienteParaParada(texto){
   clearTimeout(_paradaBuscarTimer);
@@ -8095,27 +8140,37 @@ function buscarClienteParaParada(texto){
     if(!todosLosClientes.length)await cargarClientes();
     const encontrados=todosLosClientes.filter(c=>(c.nombre||'').toLowerCase().includes(t)).slice(0,8);
     if(!encontrados.length){el.innerHTML='<div style="font-size:12px;color:var(--text-light);padding:6px 0;">Sin resultados.</div>';return;}
-    el.innerHTML=encontrados.map(c=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
-        <div>
-          <div style="font-size:13px;font-weight:600;">${c.nombre}</div>
-          <div style="font-size:11px;color:var(--text-light);">${c.direccion||'Sin dirección'}${!c.lat?' · ⚠️ sin ubicar':''}</div>
+    el.innerHTML=encontrados.map(c=>{
+      const prefix='prc-'+c.id;
+      return `
+      <div style="padding:8px 0;border-bottom:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-size:13px;font-weight:600;">${c.nombre}</div>
+            <div style="font-size:11px;color:var(--text-light);">${c.direccion||'Sin dirección'}${!c.lat?' · ⚠️ sin ubicar':''}</div>
+          </div>
+          <button onclick="_toggleDetalleParada('${prefix}')" style="background:var(--cyan);color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;">+ Agregar</button>
         </div>
-        <button onclick="agregarParadaCliente('${c.id}')" style="background:var(--cyan);color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;">+ Agregar</button>
-      </div>`).join('');
+        <div id="${prefix}-panel" style="display:none;">
+          ${_detallePedidoFormHTML(prefix)}
+          <button onclick="agregarParadaCliente('${c.id}')" style="margin-top:6px;width:100%;background:var(--success);border:none;color:#fff;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">✅ Guardar parada</button>
+        </div>
+      </div>`;
+    }).join('');
   },250);
 }
 
 async function agregarParadaCliente(clienteId){
   const c=todosLosClientes.find(x=>x.id===clienteId);
   if(!c)return;
+  const detalle=_leerDetallePedido('prc-'+clienteId);
   showLoading('Agregando parada...');
   try{
     const maxOrden=_paradasCache.reduce((m,p)=>Math.max(m,p.orden||0),0);
     await sbPost('pedidos_ruta',{
       ruta_id:rutaActivaId,cliente_id:c.id,cliente_nombre:c.nombre,
       direccion:c.direccion||null,lat:c.lat||null,lng:c.lng||null,
-      orden:maxOrden+1,estado:'pendiente'
+      orden:maxOrden+1,estado:'pendiente',...detalle
     });
     document.getElementById('parada-buscar-cliente').value='';
     document.getElementById('parada-resultados-busqueda').innerHTML='';
@@ -8309,19 +8364,29 @@ function buscarClienteParaPool(texto){
     const t=texto.trim().toLowerCase();
     const matches=todosLosClientes.filter(c=>(c.nombre||'').toLowerCase().includes(t)).slice(0,8);
     if(!matches.length){cont.innerHTML='<div style="font-size:12px;color:var(--text-light);padding:6px 0;">Sin resultados.</div>';return;}
-    cont.innerHTML=matches.map(c=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(0,153,204,.06);border:1px solid rgba(0,153,204,.15);border-radius:8px;padding:8px 10px;margin-bottom:6px;">
-        <div><div style="font-size:13px;font-weight:700;">${c.nombre}</div><div style="font-size:11px;color:var(--text-light);">${c.direccion||'Sin dirección'}</div></div>
-        <button onclick="agregarParadaPool('${c.id}')" style="background:var(--cyan);border:none;color:#fff;border-radius:6px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;">+ Agregar</button>
-      </div>`).join('');
+    cont.innerHTML=matches.map(c=>{
+      const prefix='pool-'+c.id;
+      return `
+      <div style="background:rgba(0,153,204,.06);border:1px solid rgba(0,153,204,.15);border-radius:8px;padding:8px 10px;margin-bottom:6px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div><div style="font-size:13px;font-weight:700;">${c.nombre}</div><div style="font-size:11px;color:var(--text-light);">${c.direccion||'Sin dirección'}</div></div>
+          <button onclick="_toggleDetalleParada('${prefix}')" style="background:var(--cyan);border:none;color:#fff;border-radius:6px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;">+ Agregar</button>
+        </div>
+        <div id="${prefix}-panel" style="display:none;">
+          ${_detallePedidoFormHTML(prefix)}
+          <button onclick="agregarParadaPool('${c.id}')" style="margin-top:6px;width:100%;background:var(--success);border:none;color:#fff;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">✅ Guardar en la bolsa</button>
+        </div>
+      </div>`;
+    }).join('');
   },250);
 }
 
 async function agregarParadaPool(clienteId){
   const c=todosLosClientes.find(x=>x.id===clienteId);
   if(!c)return;
+  const detalle=_leerDetallePedido('pool-'+clienteId);
   try{
-    await sbPost('pedidos_ruta',{ruta_id:null,cliente_id:c.id,cliente_nombre:c.nombre,direccion:c.direccion,lat:c.lat,lng:c.lng,orden:0,estado:'pendiente'});
+    await sbPost('pedidos_ruta',{ruta_id:null,cliente_id:c.id,cliente_nombre:c.nombre,direccion:c.direccion,lat:c.lat,lng:c.lng,orden:0,estado:'pendiente',...detalle});
     showToast('✅ Parada agregada a la bolsa');
     const input=document.getElementById('pool-buscar-cliente');if(input)input.value='';
     const res=document.getElementById('pool-resultados-busqueda');if(res)res.innerHTML='';
@@ -8369,6 +8434,7 @@ async function cargarParadasPool(){
         <div>
           <div style="font-size:14px;font-weight:700;">${p.cliente_nombre}</div>
           <div style="font-size:11px;color:var(--text-light);">${p.direccion||''}</div>
+          ${_resumenPedido(p)?`<div style="font-size:11px;color:var(--text-mid);margin-top:2px;">📦 ${_resumenPedido(p)}</div>`:''}
           ${p._dist!=null?`<div style="font-size:11px;color:var(--cyan);font-weight:700;margin-top:2px;">📍 ~${p._dist.toFixed(1)} km de ti</div>`:''}
         </div>
         <button onclick="aceptarParadaPool('${p.id}')" style="background:var(--success);border:none;color:#fff;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">✅ Aceptar</button>
