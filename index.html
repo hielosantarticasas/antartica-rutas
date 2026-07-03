@@ -2235,10 +2235,11 @@
 
 <!-- ══════════════════════ MAPA DE LA RUTA (PARADAS) ══════════════════════ -->
 <div class="screen" id="screen-mapa-ruta">
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;">
     <button onclick="showScreen('screen-ruta-activa')" style="background:rgba(0,153,204,.1);border:1px solid rgba(0,153,204,.3);color:var(--cyan);border-radius:10px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;">← Volver</button>
     <div class="section-title" style="margin-bottom:0;">MAPA DE LA RUTA</div>
   </div>
+  <div id="mapa-ruta-gps-status" style="font-size:11px;color:var(--text-light);margin-bottom:8px;">🚚 Ubicación del conductor: —</div>
   <div id="mapa-ruta-el" style="width:100%;height:70vh;border-radius:12px;background:var(--bg2);"></div>
 </div>
 
@@ -2613,6 +2614,7 @@ function navTo(id){
 }
 
 function showScreen(id){
+  if(id!=='screen-mapa-ruta'){try{_detenerRefrescoMapaRuta();}catch(e){}}
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   const el=document.getElementById(id);
   if(el)el.classList.add('active');
@@ -4964,6 +4966,7 @@ async function abrirRuta(id){
     switchTab('tab-recargue');
     showScreen('screen-ruta-activa');
     cargarHeroRutaActiva();
+    try{iniciarTrackingGPS();}catch(e){console.warn('GPS:',e.message);}
   }catch(e){hideLoading();alert('Error: '+e.message);}
 }
 
@@ -5765,6 +5768,7 @@ async function cerrarRuta(){
     }catch(e){console.error('Error actualizando despacho:',e);}
 
 
+    detenerTrackingGPS();
     rutaActivaId=null;
     rutaActivaData=null;
     hideLoading();
@@ -7648,6 +7652,7 @@ function getCurrentUser(){
 function cerrarSesion(){
   // Limpiar sesión de forma robusta (iOS PWA a veces no recarga limpio)
   try{ localStorage.removeItem('antartica_usuario'); }catch(e){}
+  try{ detenerTrackingGPS(); }catch(e){}
   usuarioActual=null;
   rutaActivaId=null; rutaActivaData=null;
   // Mostrar el login de inmediato — no dependemos solo del reload
@@ -8148,7 +8153,7 @@ async function abrirMapaRuta(){
       contenedor.innerHTML='<div class="empty" style="padding-top:60px;"><div class="empty-icon">📍</div>Ninguna parada tiene ubicación todavía.<br>Agrega paradas de clientes ya geocodificados.</div>';
       return;
     }
-    if(_mapaRutaInstance){_mapaRutaInstance.remove();_mapaRutaInstance=null;}
+    if(_mapaRutaInstance){_mapaRutaInstance.remove();_mapaRutaInstance=null;_driverMarker=null;}
     const map=L.map('mapa-ruta-el').setView([conCoords[0].lat,conCoords[0].lng],13);
     _mapaRutaInstance=map;
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
@@ -8169,7 +8174,91 @@ async function abrirMapaRuta(){
     });
     if(latlngs.length>1)L.polyline(latlngs,{color:'#0099cc',weight:3,dashArray:'6,6',opacity:.7}).addTo(map);
     if(bounds.length>1)map.fitBounds(bounds,{padding:[30,30]});
+    await _actualizarMarcadorConductor(map);
+    if(_gpsRefrescoMapaId)clearInterval(_gpsRefrescoMapaId);
+    _gpsRefrescoMapaId=setInterval(()=>_actualizarMarcadorConductor(map),15000);
   }catch(e){hideLoading();showToast('Error cargando mapa: '+e.message);}
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  GPS EN VIVO DEL CONDUCTOR
+//  El conductor solo necesita tener el GPS del celular activado y
+//  aceptar el permiso de ubicación del navegador. Mientras la ruta
+//  esté activa se envía la posición a Supabase, con límite de 1
+//  envío cada 20s para no afectar batería/datos ni la velocidad de
+//  la app. Quien esté viendo "Mapa de la ruta" ve el punto moverse
+//  (refresco cada 15s).
+// ═══════════════════════════════════════════════════════════════
+var _gpsWatchId=null;
+var _gpsUltimoEnvio=0;
+var GPS_INTERVALO_MS=20000;
+var _gpsRefrescoMapaId=null;
+var _driverMarker=null;
+
+function iniciarTrackingGPS(){
+  if(!rutaActivaId)return;
+  if(!('geolocation' in navigator)){console.warn('Este navegador no soporta geolocalización');return;}
+  if(_gpsWatchId!==null)return; // ya está corriendo
+  _gpsUltimoEnvio=0;
+  _gpsWatchId=navigator.geolocation.watchPosition(
+    pos=>{
+      const ahora=Date.now();
+      if(ahora-_gpsUltimoEnvio<GPS_INTERVALO_MS)return;
+      _gpsUltimoEnvio=ahora;
+      _enviarUbicacionConductor(pos.coords.latitude,pos.coords.longitude);
+    },
+    err=>{console.warn('GPS:',err.message);},
+    {enableHighAccuracy:false,maximumAge:15000,timeout:20000}
+  );
+}
+
+function detenerTrackingGPS(){
+  if(_gpsWatchId!==null){
+    try{navigator.geolocation.clearWatch(_gpsWatchId);}catch(e){}
+    _gpsWatchId=null;
+  }
+}
+
+async function _enviarUbicacionConductor(lat,lng){
+  const rid=rutaActivaId;
+  if(!rid)return;
+  try{
+    await fetch(`${SB_URL}/rest/v1/ubicacion_conductor?on_conflict=ruta_id`,{
+      method:'POST',
+      headers:{...HEADERS,'Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify({ruta_id:rid,lat,lng,actualizado_at:new Date().toISOString()})
+    });
+  }catch(e){console.warn('No se pudo enviar ubicación GPS:',e.message);}
+}
+
+async function _actualizarMarcadorConductor(map){
+  if(!rutaActivaId||!map)return;
+  const badge=document.getElementById('mapa-ruta-gps-status');
+  try{
+    const rows=await sbGet('ubicacion_conductor',`ruta_id=eq.${rutaActivaId}`);
+    if(!rows.length||!rows[0].lat||!rows[0].lng){
+      if(badge)badge.textContent='🚚 Ubicación del conductor: aún no disponible (esperando señal GPS)';
+      return;
+    }
+    const u=rows[0];
+    const icon=L.divIcon({
+      className:'',
+      html:'<div style="background:#0099cc;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.5);border:3px solid #fff;font-size:15px;">🚚</div>',
+      iconSize:[32,32],iconAnchor:[16,16]
+    });
+    if(_driverMarker){
+      _driverMarker.setLatLng([u.lat,u.lng]);
+    }else{
+      _driverMarker=L.marker([u.lat,u.lng],{icon,zIndexOffset:1000}).addTo(map);
+    }
+    const hora=new Date(u.actualizado_at).toLocaleTimeString('es-CO');
+    _driverMarker.bindPopup('🚚 Ubicación del conductor<br><small>Actualizado: '+hora+'</small>');
+    if(badge)badge.textContent='🚚 Ubicación del conductor: actualizado '+hora;
+  }catch(e){console.warn('Error actualizando marcador conductor:',e.message);}
+}
+
+function _detenerRefrescoMapaRuta(){
+  if(_gpsRefrescoMapaId){clearInterval(_gpsRefrescoMapaId);_gpsRefrescoMapaId=null;}
 }
 
 // ═══════════════════════════════════════════════════════════════
