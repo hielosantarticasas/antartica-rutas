@@ -2675,6 +2675,9 @@
   <div class="card">
     <label>Nombre *</label>
     <input type="text" id="uf-nombre" placeholder="Ej: Carlos Rodríguez">
+    <label>Apodo (opcional)</label>
+    <input type="text" id="uf-apodo" placeholder="Ej: Gomelo — si en las rutas lo escriben distinto a su nombre">
+    <div style="font-size:11px;color:var(--text-light);margin-top:-8px;margin-bottom:12px;">Sirve para que el GPS y "aceptar parada" lo reconozcan aunque en la ruta se escriba con el apodo en vez del nombre registrado.</div>
     <label>Rol</label>
     <select id="uf-rol" onchange="actualizarModulosPorRol()">
       <option value="admin">🔑 Administrador</option>
@@ -5169,7 +5172,7 @@ async function abrirRuta(id){
       // no cualquiera que entre a verla (ej. el administrador revisando el progreso).
       detenerTrackingGPS();
       const u=getCurrentUser();
-      if(u&&rutaActivaData&&_normNombre(u.nombre)===_normNombre(rutaActivaData.conductor)){
+      if(u&&rutaActivaData&&_esConductorDeUsuario(rutaActivaData.conductor,u)){
         iniciarTrackingGPS();
       }
     }catch(e){console.warn('GPS:',e.message);}
@@ -5829,12 +5832,12 @@ async function cargarResumen(){
   if(!rutaActivaId)return;
   try{
     const [ventas,recargues,gastos,cobros,rutaRows,devoluciones]=await Promise.all([
-      sbGet('ventas',`ruta_id=eq.${rutaActivaId}`),
-      sbGet('recargues',`ruta_id=eq.${rutaActivaId}&order=created_at.asc`),
-      sbGet('gastos',`ruta_id=eq.${rutaActivaId}`),
-      sbGet('cobros_cartera',`ruta_id=eq.${rutaActivaId}`),
-      sbGet('rutas',`id=eq.${rutaActivaId}`),
-      sbGet('devoluciones',`ruta_id=eq.${rutaActivaId}`)
+      sbGet('ventas',`ruta_id=eq.${rutaActivaId}&select=${VENTAS_COLS},regalias_b20,regalias_b10,regalias_b3,cambios_b20,cambios_b10,cambios_b3`),
+      sbGet('recargues',`ruta_id=eq.${rutaActivaId}&order=created_at.asc&select=hora,b20,b10,b3`),
+      sbGet('gastos',`ruta_id=eq.${rutaActivaId}&select=valor`),
+      sbGet('cobros_cartera',`ruta_id=eq.${rutaActivaId}&select=cliente,es_global,nota,valor`),
+      sbGet('rutas',`id=eq.${rutaActivaId}&select=salida_b20,salida_b10,salida_b3`),
+      sbGet('devoluciones',`ruta_id=eq.${rutaActivaId}&select=hora,b20,b10,b3`)
     ]);
     const ruta=rutaRows[0];
     const totalVentas=ventas.reduce((s,e)=>s+Number(e.precio),0);
@@ -7927,7 +7930,7 @@ function pedirPassword(idx){
   const rl=document.getElementById('lp-rol');if(rl)rl.textContent=usuario.rol==='admin'?'Administrador':usuario.rol==='ruta'?'Conductor':'Operario';
   // Si no tiene contraseña, entrar directo
   if(!usuario.password){
-    entrarComoUsuario(usuario.id,usuario.nombre,usuario.rol,usuario.modulos);
+    entrarComoUsuario(usuario.id,usuario.nombre,usuario.rol,usuario.modulos,usuario.apodo);
     return;
   }
   const pw=document.getElementById('lp-password');if(pw){pw.value='';pw.focus();}
@@ -7949,10 +7952,10 @@ function confirmarPassword(){
     // Sin contraseña configurada — avisa pero deja pasar
     if(err)err.style.display='none';
     showToast('⚠️ Sin contraseña configurada. Asigna una en Admin → Gestionar usuarios.');
-    entrarComoUsuario(_usuarioPendiente.id,_usuarioPendiente.nombre,_usuarioPendiente.rol,_usuarioPendiente.modulos);
+    entrarComoUsuario(_usuarioPendiente.id,_usuarioPendiente.nombre,_usuarioPendiente.rol,_usuarioPendiente.modulos,_usuarioPendiente.apodo);
   } else if(pw===guardada){
     if(err)err.style.display='none';
-    entrarComoUsuario(_usuarioPendiente.id,_usuarioPendiente.nombre,_usuarioPendiente.rol,_usuarioPendiente.modulos);
+    entrarComoUsuario(_usuarioPendiente.id,_usuarioPendiente.nombre,_usuarioPendiente.rol,_usuarioPendiente.modulos,_usuarioPendiente.apodo);
   } else {
     if(err){err.textContent='❌ Código incorrecto';err.style.display='block';}
     const pwEl=document.getElementById('lp-password');if(pwEl){pwEl.value='';pwEl.focus();}
@@ -7960,8 +7963,8 @@ function confirmarPassword(){
 }
 
 // Actualizar entrarComoUsuario para recibir modulos
-function entrarComoUsuario(id,nombre,rol,modulos){
-  const u={id,nombre,rol,modulos:modulos||null};
+function entrarComoUsuario(id,nombre,rol,modulos,apodo){
+  const u={id,nombre,rol,modulos:modulos||null,apodo:apodo||null};
   localStorage.setItem('antartica_usuario',JSON.stringify(u));
   usuarioActual=u;
   document.body.classList.remove('logged-out');
@@ -8018,7 +8021,7 @@ async function cargarUsuariosAdmin(){
 }
 
 function prepFormUsuario(){
-  ['uf-id','uf-nombre','uf-password'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['uf-id','uf-nombre','uf-apodo','uf-password'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   const rol=document.getElementById('uf-rol');if(rol)rol.value='ruta';
   const t=document.getElementById('titulo-form-usuario');if(t)t.textContent='NUEVO USUARIO';
   renderModulosCheckboxes([]);
@@ -8030,6 +8033,7 @@ async function editarUsuarioAdmin(id){
   if(!u)return;
   document.getElementById('uf-id').value=u.id;
   document.getElementById('uf-nombre').value=u.nombre||'';
+  document.getElementById('uf-apodo').value=u.apodo||'';
   document.getElementById('uf-rol').value=u.rol||'ruta';
   document.getElementById('uf-password').value='';
   // Verificar columnas
@@ -8095,11 +8099,12 @@ function getModulosSeleccionados(){
 async function guardarUsuarioAdmin(){
   const id=(document.getElementById('uf-id').value||'').trim();
   const nombre=(document.getElementById('uf-nombre').value||'').trim();
+  const apodo=(document.getElementById('uf-apodo').value||'').trim();
   const rol=document.getElementById('uf-rol').value;
   const password=(document.getElementById('uf-password').value||'').trim();
   if(!nombre){showToast('El nombre es obligatorio');return;}
   const modulos=getModulosSeleccionados();
-  const body={nombre,rol,modulos,activo:true};
+  const body={nombre,apodo:apodo||null,rol,modulos,activo:true};
   // Solo actualiza la contraseña si se ingresó una nueva
   if(password){
     if(password.length<4){showToast('La contraseña debe tener mínimo 4 caracteres');return;}
@@ -8118,7 +8123,7 @@ async function guardarUsuarioAdmin(){
     showScreen('screen-admin-usuarios');cargarUsuariosAdmin();
     // Si es el mismo usuario logueado, actualizar sesión
     const cu=getCurrentUser();
-    if(cu&&cu.id===id){localStorage.setItem('antartica_usuario',JSON.stringify({...cu,modulos,rol}));}
+    if(cu&&cu.id===id){localStorage.setItem('antartica_usuario',JSON.stringify({...cu,nombre,apodo:apodo||null,modulos,rol}));}
   }catch(e){hideLoading();showToast('Error: '+e.message);}
 }
 
@@ -8765,6 +8770,25 @@ function _normNombre(s){
   return (s||'').toString().normalize('NFD').replace(_RE_DIACRITICOS,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 }
 
+// Compara el "conductor" escrito a mano en una ruta contra un usuario
+// registrado, sin exigir coincidencia exacta — evita que typos comunes
+// (falta un apellido, o se usó un apodo) rompan el GPS automático:
+// 1) Coincidencia exacta normalizada.
+// 2) Uno es el inicio (por palabra completa) del otro — ej. "Camilo" en
+//    una ruta coincide con el usuario "Camilo Montoya".
+// 3) Coincide con el apodo guardado en el perfil del usuario — ej. un
+//    usuario registrado como "Brayam Zuleta" con apodo "Brayam Gomelo".
+function _esConductorDeUsuario(conductorTexto,usuario){
+  if(!conductorTexto||!usuario)return false;
+  const c=_normNombre(conductorTexto);
+  const n=_normNombre(usuario.nombre);
+  if(!c||!n)return false;
+  if(c===n)return true;
+  if(n.startsWith(c+' ')||c.startsWith(n+' '))return true;
+  if(usuario.apodo&&_normNombre(usuario.apodo)===c)return true;
+  return false;
+}
+
 function iniciarTrackingGPS(){
   if(!rutaActivaId)return;
   if(!('geolocation' in navigator)){showToast('⚠️ Este dispositivo no tiene GPS disponible.');return;}
@@ -8815,7 +8839,7 @@ async function _autoIniciarGPSSiHayRutaActiva(){
     if(!u||u.rol!=='ruta')return; // solo conductores necesitan GPS automático
     if(!('geolocation' in navigator))return;
     const activas=await sbGet('rutas','estado=eq.activa&select=*');
-    const mia=activas.find(r=>_normNombre(r.conductor)===_normNombre(u.nombre));
+    const mia=activas.find(r=>_esConductorDeUsuario(r.conductor,u));
     if(!mia)return;
     if(!rutaActivaId){rutaActivaId=mia.id;rutaActivaData=mia;}
     iniciarTrackingGPS();
@@ -9154,7 +9178,7 @@ async function _miRutaActivaId(){
   if(!u)return null;
   try{
     const activas=await sbGet('rutas','estado=eq.activa&select=id,conductor');
-    const mia=activas.find(r=>_normNombre(r.conductor)===_normNombre(u.nombre));
+    const mia=activas.find(r=>_esConductorDeUsuario(r.conductor,u));
     return mia?mia.id:null;
   }catch(e){return null;}
 }
