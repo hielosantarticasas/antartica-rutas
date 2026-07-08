@@ -2840,6 +2840,10 @@ function abrirModuloPlanta(modulo){
       content.innerHTML=source.innerHTML;
     }
     m.fn();
+    if(modulo==='planta-desp'){
+      const fe=document.getElementById('cav-fecha');
+      if(fe&&!fe.value)fe.value=fechaCorta();
+    }
   }
   window.scrollTo(0,0);
 }
