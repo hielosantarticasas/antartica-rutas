@@ -1067,8 +1067,17 @@
     <button class="tab" id="ctab-todas" onclick="filtrarCartera('todas')" style="flex:1;min-width:fit-content;">📋 Todas</button>
     <button class="tab" id="ctab-historial" onclick="filtrarCartera('historial')" style="flex:1;min-width:fit-content;">📅 Historial</button>
   </div>
+  <button id="btn-estado-cuenta" onclick="abrirEstadoCuentaCliente()" style="width:100%;background:rgba(107,79,187,.1);border:1px solid rgba(107,79,187,.3);color:var(--transfer);border-radius:10px;padding:11px 14px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:8px;">🧾 Estado de cuenta por cliente</button>
   <div id="cartera-lista"><div class="empty"><div class="empty-icon">💰</div>Sin fiados pendientes.</div></div>
   <div id="cartera-historial-lista" style="display:none;"></div>
+
+  <!-- ESTADO DE CUENTA POR CLIENTE -->
+  <div id="cartera-estado-cuenta" style="display:none;">
+    <button onclick="cerrarEstadoCuentaCliente()" style="background:rgba(0,153,204,.1);border:1px solid rgba(0,153,204,.3);color:var(--cyan);border-radius:10px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:12px;">← Volver a Cartera</button>
+    <input type="text" id="estado-cuenta-buscar" placeholder="🔍 Buscar cliente por nombre..." oninput="buscarEstadoCuentaCliente(this.value)" autocomplete="off" style="margin-bottom:8px;">
+    <div id="estado-cuenta-sugerencias" style="margin-bottom:10px;"></div>
+    <div id="estado-cuenta-resultado"><div class="empty"><div class="empty-icon">🔍</div>Busca un cliente para ver su estado de cuenta.</div></div>
+  </div>
 </div>
 
 <!-- GERENCIAL -->
@@ -1984,6 +1993,11 @@
       </div>
       <div id="cav-info-vendedor" style="display:none;background:var(--warning-bg);border:1px solid rgba(176,120,0,.25);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--warning);">
         🧑‍💼 <strong>Vendedor de zona.</strong> Sale con pedido facturado. Entrega y trae el dinero.
+      </div>
+      <div style="background:rgba(0,153,204,.06);border:1px solid rgba(0,153,204,.2);border-radius:10px;padding:10px 12px;margin-bottom:12px;">
+        <label style="margin-bottom:4px;">📅 Fecha del despacho</label>
+        <input type="date" id="cav-fecha">
+        <div style="font-size:11px;color:var(--text-light);margin-top:4px;">Por defecto es hoy. Cámbiala solo si estás registrando una venta de un día anterior que quedó pendiente.</div>
       </div>
       <div id="cav-campo-conductor">
         <label>Nombre del conductor</label>
@@ -2945,7 +2959,7 @@ function switchCava(tab){
   const btn=document.getElementById(tab.replace('ctab-','ctab-btn-'));if(btn)btn.classList.add('active');
   if(tab==='ctab-turno')cargarTurnos();
   if(tab==='ctab-prod'){cargarProduccion();cargarReprocesosHoy();cargarTransformacionesHoy();}
-  if(tab==='ctab-desp')cargarDespachos();
+  if(tab==='ctab-desp'){cargarDespachos();const fe=document.getElementById('cav-fecha');if(fe&&!fe.value)fe.value=fechaCorta();}
   if(tab==='ctab-cartera')cargarCavaCartera();
   if(tab==='ctab-gastos')cargarGastosCava();
   if(tab==='ctab-resumen')cargarResumenCava();
@@ -3052,6 +3066,8 @@ async function registrarDespacho(){
   const b20=getI('cav-b20'),b10=getI('cav-b10'),b3=getI('cav-b3');
   if(b20+b10+b3===0){alert('Ingresa al menos una bolsa');return;}
   const hora=new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+  const fechaEl=document.getElementById('cav-fecha');
+  const fechaDespacho=(fechaEl&&fechaEl.value)?fechaEl.value:fechaCorta();
 
   if(tipoDespachSel==='ruta'){
     const conductorNombre=document.getElementById('cav-conductor-txt').value.trim();
@@ -3103,7 +3119,7 @@ async function registrarDespacho(){
   try{
     const vendedor=tipoDespachSel==='vendedor'?document.getElementById('cav-vendedor-asig').value.trim():'';
     await sbPost('despachos_cava',{
-      fecha:fechaCorta(), destino:cliente, tipo:tipoDespachSel,
+      fecha:fechaDespacho, destino:cliente, tipo:tipoDespachSel,
       b20, b10, b3, hora, p20, p10, p3, total,
       forma_pago:pagoCavaSel,
       vendedor_asignado:vendedor,
@@ -3114,6 +3130,7 @@ async function registrarDespacho(){
     ['cav-p20','cav-p10','cav-p3','cav-cliente','cav-nota','cav-vendedor-asig'].forEach(id=>{
       const el=document.getElementById(id); if(el) el.value='';
     });
+    if(fechaEl)fechaEl.value=fechaCorta();
     document.getElementById('cav-total-calc').textContent='$0';
     hideLoading();showToast('✅ Despacho registrado');
     cargarDespachos();
@@ -6250,6 +6267,8 @@ function filtrarCarteraCliente(texto){
 
 function filtrarCartera(tipo){
   filtroCartera=tipo;
+  const estadoEl=document.getElementById('cartera-estado-cuenta');
+  if(estadoEl)estadoEl.style.display='none';
   ['ruta','cava','todas','historial'].forEach(t=>{
     const el=document.getElementById('ctab-'+t);
     if(el)el.classList.toggle('active',t===tipo);
@@ -6330,6 +6349,212 @@ async function cargarHistorialCobros(){
 }
 
 
+
+// ═══ ESTADO DE CUENTA POR CLIENTE ═══
+let _estadoCuentaCliente=null;
+let _estadoCuentaBuscarTimeout=null;
+let _estadoCuentaDatos={ventas:[],desps:[],cobros:[]};
+
+function abrirEstadoCuentaCliente(){
+  const listaEl=document.getElementById('cartera-lista');if(listaEl)listaEl.style.display='none';
+  const histEl=document.getElementById('cartera-historial-lista');if(histEl)histEl.style.display='none';
+  const totalFiltEl=document.getElementById('cartera-filtrado-total');if(totalFiltEl)totalFiltEl.style.display='none';
+  const estadoEl=document.getElementById('cartera-estado-cuenta');if(estadoEl)estadoEl.style.display='block';
+  const buscarEl=document.getElementById('estado-cuenta-buscar');if(buscarEl)buscarEl.value='';
+  const sugEl=document.getElementById('estado-cuenta-sugerencias');if(sugEl)sugEl.innerHTML='';
+  document.getElementById('estado-cuenta-resultado').innerHTML='<div class="empty"><div class="empty-icon">🔍</div>Busca un cliente para ver su estado de cuenta.</div>';
+  _estadoCuentaCliente=null;
+}
+function cerrarEstadoCuentaCliente(){
+  const estadoEl=document.getElementById('cartera-estado-cuenta');if(estadoEl)estadoEl.style.display='none';
+  filtrarCartera(filtroCartera&&filtroCartera!=='historial'?filtroCartera:'ruta');
+}
+function buscarEstadoCuentaCliente(texto){
+  clearTimeout(_estadoCuentaBuscarTimeout);
+  const sugEl=document.getElementById('estado-cuenta-sugerencias');
+  if(!texto||texto.trim().length<2){sugEl.innerHTML='';return;}
+  _estadoCuentaBuscarTimeout=setTimeout(async()=>{
+    try{
+      const q=encodeURIComponent(texto.trim());
+      const [ventas,desps]=await Promise.all([
+        sbGet('ventas',`cliente=ilike.*${q}*&select=cliente&limit=50`).catch(()=>[]),
+        sbGet('despachos_cava',`destino=ilike.*${q}*&tipo=neq.ruta&select=destino&limit=50`).catch(()=>[])
+      ]);
+      const nombres=new Set();
+      ventas.forEach(v=>{if(v.cliente)nombres.add(v.cliente);});
+      desps.forEach(d=>{if(d.destino)nombres.add(d.destino);});
+      const lista=[...nombres].sort((a,b)=>a.localeCompare(b));
+      if(!lista.length){sugEl.innerHTML='<div style="font-size:12px;color:var(--text-light);padding:8px 0;">Sin coincidencias.</div>';return;}
+      sugEl.innerHTML=lista.slice(0,12).map(n=>`<button onclick="seleccionarClienteEstadoCuenta('${n.replace(/'/g,"\\'")}')" style="display:block;width:100%;text-align:left;background:rgba(78,142,162,.08);border:1px solid var(--border);color:var(--text-bright);border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:5px;cursor:pointer;">👤 ${n}</button>`).join('');
+    }catch(e){}
+  },350);
+}
+async function seleccionarClienteEstadoCuenta(nombre){
+  _estadoCuentaCliente=nombre;
+  const buscarEl=document.getElementById('estado-cuenta-buscar');if(buscarEl)buscarEl.value=nombre;
+  const sugEl=document.getElementById('estado-cuenta-sugerencias');if(sugEl)sugEl.innerHTML='';
+  const resEl=document.getElementById('estado-cuenta-resultado');
+  resEl.innerHTML='<div style="font-size:13px;color:var(--text-light);padding:14px;">Cargando estado de cuenta...</div>';
+  try{
+    const q=encodeURIComponent(nombre);
+    const [ventas,desps,cobros]=await Promise.all([
+      sbGet('ventas',`cliente=ilike.${q}&select=${VENTAS_COLS},rutas(conductor,fecha)&order=created_at.asc`).catch(()=>[]),
+      sbGet('despachos_cava',`destino=ilike.${q}&tipo=neq.ruta&select=*&order=fecha.asc,created_at.asc`).catch(()=>[]),
+      sbGet('cobros_cartera',`cliente=ilike.${q}&select=*&order=created_at.asc`).catch(()=>[])
+    ]);
+    _estadoCuentaDatos={ventas,desps,cobros};
+    renderEstadoCuentaCliente(nombre,ventas,desps,cobros);
+  }catch(e){resEl.innerHTML='<div class="empty">Error al cargar estado de cuenta.</div>';}
+}
+
+function renderEstadoCuentaCliente(nombre,ventas,desps,cobros){
+  const resEl=document.getElementById('estado-cuenta-resultado');
+  if(!ventas.length&&!desps.length){
+    resEl.innerHTML=`<div class="empty"><div class="empty-icon">🧾</div>Sin movimientos para "${nombre}".</div>`;
+    return;
+  }
+  const movs=[];
+  ventas.forEach(v=>{
+    const det=[v.b20>0?`${v.b20}×20kg`:'',v.b10>0?`${v.b10}×10kg`:'',v.b3>0?`${v.b3}×3kg`:''].filter(Boolean).join(' · ');
+    movs.push({
+      fecha: v.rutas?.fecha || (v.created_at?v.created_at.slice(0,10):'—'),
+      tipo:'🚛 Ruta', detalle:det||'—', conductor:v.rutas?.conductor||'',
+      cargo:Number(v.precio||0), abono:Number(v.abono||0), saldo:Number(v.debe||0),
+      pagado: !!v.cobrado, nota:v.nota||''
+    });
+  });
+  desps.forEach(d=>{
+    const det=[d.b20>0?`${d.b20}×20kg`:'',d.b10>0?`${d.b10}×10kg`:'',d.b3>0?`${d.b3}×3kg`:''].filter(Boolean).join(' · ');
+    const abono=Number(d.abono_cava||0);
+    const saldo=d.cobrado?0:Math.max(0,Number(d.total||0)-abono);
+    const tipoLabel={puerta:'🚪 Planta',revendedor:'🚲 Revendedor',vendedor:'🧑‍💼 Vendedor'};
+    movs.push({
+      fecha:d.fecha||'—', tipo:tipoLabel[d.tipo]||'🌿 Planta', detalle:det||'—', conductor:'',
+      cargo:Number(d.total||0), abono, saldo,
+      pagado: !!d.cobrado, nota:d.nota||''
+    });
+  });
+  movs.sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
+
+  const totalFacturado=movs.reduce((s,m)=>s+m.cargo,0);
+  const totalAbonado=movs.reduce((s,m)=>s+m.abono,0);
+  const totalSaldo=movs.reduce((s,m)=>s+m.saldo,0);
+
+  let html=`
+    <div style="background:rgba(107,79,187,.08);border:1px solid rgba(107,79,187,.25);border-radius:14px;padding:14px;margin-bottom:14px;">
+      <div style="font-weight:700;font-size:15px;color:var(--text-bright);margin-bottom:8px;">👤 ${nombre}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <div><div style="font-size:9px;color:var(--text-light);text-transform:uppercase;letter-spacing:1px;">Facturado</div>
+          <div style="font-family:'DM Mono',monospace;font-weight:700;font-size:14px;">${fmt(totalFacturado)}</div></div>
+        <div><div style="font-size:9px;color:var(--text-light);text-transform:uppercase;letter-spacing:1px;">Abonado</div>
+          <div style="font-family:'DM Mono',monospace;font-weight:700;font-size:14px;color:var(--success);">${fmt(totalAbonado)}</div></div>
+        <div><div style="font-size:9px;color:var(--text-light);text-transform:uppercase;letter-spacing:1px;">Saldo</div>
+          <div style="font-family:'DM Mono',monospace;font-weight:700;font-size:14px;color:${totalSaldo>0?'var(--danger)':'var(--success)'};">${fmt(totalSaldo)}</div></div>
+      </div>
+    </div>
+    <button onclick="exportarEstadoCuentaPDF()" style="width:100%;background:rgba(0,153,204,.1);border:1px solid rgba(0,153,204,.3);color:var(--cyan);border-radius:10px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:14px;">📄 Exportar estado de cuenta a PDF</button>
+    <div style="font-size:10px;font-weight:700;color:var(--text-light);letter-spacing:1.5px;margin-bottom:8px;text-transform:uppercase;">📋 Facturas / Ventas</div>`;
+
+  html+=movs.map(m=>`
+    <div class="cartera-item" style="${m.pagado?'opacity:.75;':''}">
+      <div class="cartera-header">
+        <div class="cartera-cliente">${m.tipo} · ${m.fecha}</div>
+        <div class="cartera-debe" style="color:${m.pagado?'var(--success)':'var(--danger)'};">${m.pagado?'✅ Pagado':fmt(m.saldo)}</div>
+      </div>
+      <div class="cartera-meta">${m.detalle}${m.conductor?' · '+m.conductor:''}
+        <br>Total: ${fmt(m.cargo)}${m.abono>0?' · Abonado: '+fmt(m.abono):''}
+        ${m.nota?`<br><span style="font-style:italic;">📝 ${m.nota}</span>`:''}
+      </div>
+    </div>`).join('');
+
+  if(cobros.length){
+    html+=`<div style="font-size:10px;font-weight:700;color:var(--text-light);letter-spacing:1.5px;margin:16px 0 8px;text-transform:uppercase;">💵 Abonos registrados en ruta</div>`;
+    cobros.forEach(c=>{
+      html+=`<div style="background:rgba(0,207,154,.05);border:1px solid rgba(0,207,154,.2);border-radius:12px;padding:12px;margin-bottom:6px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div><div style="font-size:12px;color:var(--text-light);">${c.fecha||(c.created_at?c.created_at.slice(0,10):'—')}${c.conductor_cobro?' · Cobró: '+c.conductor_cobro:''}</div>
+          ${c.nota?`<div style="font-size:12px;color:var(--text-mid);font-style:italic;">📝 ${c.nota}</div>`:''}</div>
+          <div style="font-family:'DM Mono',monospace;font-weight:700;color:var(--success);font-size:14px;">+${fmt(c.valor||0)}</div>
+        </div></div>`;
+    });
+  }
+
+  resEl.innerHTML=html;
+}
+
+// ═══ EXPORT ESTADO DE CUENTA PDF ═══
+async function exportarEstadoCuentaPDF(){
+  if(!_estadoCuentaCliente){showToast('Selecciona un cliente primero');return;}
+  showLoading('Generando PDF...');
+  try{
+    if(!window.jspdf){
+      await new Promise((res,rej)=>{
+        const s=document.createElement('script');
+        s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload=res;s.onerror=rej;document.head.appendChild(s);
+      });
+    }
+    const {ventas,desps}=_estadoCuentaDatos;
+    hideLoading();
+    const {jsPDF}=window.jspdf||{};
+    if(!jsPDF){showToast('Error: jsPDF no disponible');return;}
+    const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const W=210,margin=15;
+    let y=20;
+    doc.setFont('helvetica','bold');doc.setFontSize(18);
+    doc.text('HIELOS ANTÁRTICA',W/2,y,{align:'center'});y+=7;
+    doc.setFontSize(11);doc.setFont('helvetica','normal');
+    doc.text('Estado de Cuenta — '+_estadoCuentaCliente,W/2,y,{align:'center'});y+=5;
+    doc.setFontSize(9);
+    doc.text(`Generado: ${new Date().toLocaleDateString('es-CO')}`,W/2,y,{align:'center'});y+=8;
+    doc.setDrawColor(0,153,204);doc.setLineWidth(0.5);doc.line(margin,y,W-margin,y);y+=8;
+
+    const movs=[];
+    ventas.forEach(v=>{
+      const det=[v.b20>0?`${v.b20}x20`:'',v.b10>0?`${v.b10}x10`:'',v.b3>0?`${v.b3}x3`:''].filter(Boolean).join(' ');
+      movs.push({fecha:v.rutas?.fecha||(v.created_at?v.created_at.slice(0,10):'—'),tipo:'Ruta',det,cargo:Number(v.precio||0),abono:Number(v.abono||0),saldo:Number(v.debe||0)});
+    });
+    desps.forEach(d=>{
+      const det=[d.b20>0?`${d.b20}x20`:'',d.b10>0?`${d.b10}x10`:'',d.b3>0?`${d.b3}x3`:''].filter(Boolean).join(' ');
+      const abono=Number(d.abono_cava||0);
+      const saldo=d.cobrado?0:Math.max(0,Number(d.total||0)-abono);
+      movs.push({fecha:d.fecha||'—',tipo:'Planta',det,cargo:Number(d.total||0),abono,saldo});
+    });
+    movs.sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
+
+    doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(0,0,0);
+    doc.text('Fecha',margin,y);
+    doc.text('Tipo',margin+25,y);
+    doc.text('Detalle',margin+45,y);
+    doc.text('Total',margin+110,y);
+    doc.text('Abono',margin+140,y);
+    doc.text('Saldo',W-margin,y,{align:'right'});
+    y+=5;doc.setDrawColor(200,200,200);doc.line(margin,y-2,W-margin,y-2);
+    doc.setFont('helvetica','normal');
+    let totalCargo=0,totalAbono=0,totalSaldo=0;
+    movs.forEach(m=>{
+      if(y>270){doc.addPage();y=20;}
+      totalCargo+=m.cargo;totalAbono+=m.abono;totalSaldo+=m.saldo;
+      doc.text(String(m.fecha),margin,y);
+      doc.text(m.tipo,margin+25,y);
+      doc.text(m.det||'—',margin+45,y,{maxWidth:60});
+      doc.text(`$${m.cargo.toLocaleString('es-CO')}`,margin+110,y);
+      doc.text(`$${m.abono.toLocaleString('es-CO')}`,margin+140,y);
+      doc.text(`$${m.saldo.toLocaleString('es-CO')}`,W-margin,y,{align:'right'});
+      y+=5.5;
+    });
+    y+=4;doc.setDrawColor(0,153,204);doc.line(margin,y,W-margin,y);y+=6;
+    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(0,0,0);
+    doc.text(`TOTAL FACTURADO: $${totalCargo.toLocaleString('es-CO')}`,margin,y);y+=6;
+    doc.setTextColor(0,140,90);
+    doc.text(`TOTAL ABONADO: $${totalAbono.toLocaleString('es-CO')}`,margin,y);y+=6;
+    doc.setTextColor(190,30,30);
+    doc.text(`SALDO PENDIENTE: $${totalSaldo.toLocaleString('es-CO')}`,margin,y);
+
+    doc.save(`estado_cuenta_${_estadoCuentaCliente.replace(/[^a-z0-9]+/gi,'_')}.pdf`);
+    showToast('✅ PDF generado');
+  }catch(e){hideLoading();showToast('Error al generar PDF: '+e.message);}
+}
 
 // ═══ DETALLE Y EDICIÓN DE FACTURA EN CARTERA ═══
 let _ventaEditId=null;
