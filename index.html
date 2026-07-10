@@ -983,7 +983,10 @@
 
   <!-- TAB: RESUMEN -->
   <div id="tab-resumen" style="display:none;">
-    <button onclick="['tab-recargue','tab-ventas','tab-gastos','tab-resumen','tab-paradas'].forEach(t=>{const e=document.getElementById(t);if(e)e.style.display='none';})" style="background:rgba(0,153,204,.1);border:1px solid rgba(0,153,204,.3);color:var(--cyan);border-radius:10px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:12px;display:block;">← Módulos</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;">
+      <button onclick="['tab-recargue','tab-ventas','tab-gastos','tab-resumen','tab-paradas'].forEach(t=>{const e=document.getElementById(t);if(e)e.style.display='none';})" style="background:rgba(0,153,204,.1);border:1px solid rgba(0,153,204,.3);color:var(--cyan);border-radius:10px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;display:block;">← Módulos</button>
+      <button onclick="exportarResumenRutaPDF()" style="background:rgba(0,153,204,.1);border:1px solid rgba(0,153,204,.3);color:var(--cyan);border-radius:10px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;">📄 Exportar PDF</button>
+    </div>
     <div class="stats-grid">
       <div class="stat-box"><div class="stat-label">Total Ventas</div><div class="stat-value cyan" id="res-total-ventas">$0</div></div>
       <div class="stat-box"><div class="stat-label">Ventas</div><div class="stat-value dark" id="res-num-ventas">0</div></div>
@@ -5849,6 +5852,7 @@ async function agregarCobroCartera(){
 }
 
 // ===== RESUMEN =====
+let _resumenRutaData=null;
 async function cargarResumen(){
   if(!rutaActivaId)return;
   try{
@@ -5981,7 +5985,252 @@ async function cargarResumen(){
     document.getElementById('res-gastos-total').textContent=fmt(totalGastos);
     document.getElementById('res-consignar').textContent=fmt(Math.max(0,totalEfectivo+totalCartera-totalGastos));
     document.getElementById('res-ya-consignado').textContent=fmt(totalTransf);
+
+    // Cache para exportar a PDF
+    _resumenRutaData={
+      ruta:{
+        conductor:rutaActivaData?.conductor||'—',
+        vehiculo:rutaActivaData?.vehiculo||'',
+        fecha:rutaActivaData?.fecha||fechaCorta(),
+        auxiliar:rutaActivaData?.auxiliar||''
+      },
+      totales:{totalVentas,numVentas:ventas.length,totalEfectivo,totalTransf,totalFiados,totalGastos,totalCartera},
+      bolsas:{
+        salida:{b20:ruta.salida_b20||0,b10:ruta.salida_b10||0,b3:ruta.salida_b3||0},
+        recargues:recargues.map(r=>({hora:r.hora||'',b20:r.b20,b10:r.b10,b3:r.b3})),
+        totalDisponible:{b20:tot20,b10:tot10,b3:tot3},
+        vendidas:{b20:bV20,b10:bV10,b3:bV3},
+        devoluciones:devoluciones.map(d=>({hora:d.hora||'',b20:d.b20,b10:d.b10,b3:d.b3})),
+        sobrantes:{b20:Math.max(0,tot20-bV20-reg20-dev20),b10:Math.max(0,tot10-bV10-reg10-dev10),b3:Math.max(0,tot3-bV3-reg3-dev3)},
+        regalias:{b20:reg20,b10:reg10,b3:reg3},
+        cambios:{b20:cam20,b10:cam10,b3:cam3}
+      },
+      precioMap,
+      fiados:fiados.map(e=>({cliente:e.cliente,tipo:e.tipo_cliente||'',b20:e.b20,b10:e.b10,b3:e.b3,debe:Number(e.debe||0),nota:e.nota||''})),
+      cobros:cobros.map(c=>({cliente:c.cliente,esGlobal:!!c.es_global,nota:c.nota||'',valor:Number(c.valor||0)})),
+      consignar:Math.max(0,totalEfectivo+totalCartera-totalGastos)
+    };
   }catch(e){console.error(e);}
+}
+
+// ═══ EXPORT RESUMEN Y LIQUIDACIÓN DE RUTA A PDF ═══
+async function exportarResumenRutaPDF(){
+  if(!_resumenRutaData){showToast('Primero carga el resumen de la ruta.');return;}
+  showLoading('Generando PDF...');
+  try{
+    if(!window.jspdf){
+      await new Promise((res,rej)=>{
+        const s=document.createElement('script');
+        s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload=res;s.onerror=rej;document.head.appendChild(s);
+      });
+    }
+    const D=_resumenRutaData;
+    hideLoading();
+    const {jsPDF}=window.jspdf||{};
+    if(!jsPDF){showToast('Error: jsPDF no disponible');return;}
+    const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const W=210,H=297,margin=15,innerW=W-margin*2;
+    const COL_DARK=[10,42,74],COL_CYAN=[0,153,204],COL_SUCCESS=[0,150,110],
+          COL_DANGER=[204,34,51],COL_WARN=[184,120,0],COL_TEXT=[30,35,45],
+          COL_LIGHT=[110,120,135],COL_BORDER=[220,224,230],COL_BG=[244,247,250];
+    let y=0,pageNum=1;
+
+    function fmtN(n){return '$'+Math.round(Number(n||0)).toLocaleString('es-CO');}
+    function footer(){
+      doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...COL_LIGHT);
+      doc.text(`Hielos Antártica — Documento generado el ${new Date().toLocaleString('es-CO')}`,margin,H-8);
+      doc.text(`Pág. ${pageNum}`,W-margin,H-8,{align:'right'});
+    }
+    function checkBreak(need){
+      if(y+need>H-16){footer();doc.addPage();pageNum++;y=18;}
+    }
+    function sectionHeader(title){
+      checkBreak(14);
+      doc.setFillColor(...COL_DARK);
+      doc.roundedRect(margin,y,innerW,8,1.5,1.5,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.setTextColor(255,255,255);
+      doc.text(title,margin+4,y+5.7);
+      y+=13;
+    }
+    function tableHeaderRow(cols,widths,x0){
+      checkBreak(9);
+      doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(255,255,255);
+      doc.setFillColor(...COL_CYAN);
+      doc.rect(x0,y,widths.reduce((a,b)=>a+b,0),6.5,'F');
+      let cx=x0;
+      cols.forEach((c,i)=>{
+        doc.text(c.label,cx+(c.align==='right'?widths[i]-2:2),y+4.4,{align:c.align==='right'?'right':'left'});
+        cx+=widths[i];
+      });
+      y+=6.5;
+    }
+    function tableRow(vals,widths,x0,opts={}){
+      const rowH=opts.h||6;
+      checkBreak(rowH+2);
+      if(opts.shade){doc.setFillColor(...COL_BG);doc.rect(x0,y,widths.reduce((a,b)=>a+b,0),rowH,'F');}
+      doc.setFont('helvetica',opts.bold?'bold':'normal');doc.setFontSize(8.5);
+      doc.setTextColor(...(opts.color||COL_TEXT));
+      let cx=x0;
+      vals.forEach((v,i)=>{
+        const align=opts.aligns?opts.aligns[i]:'left';
+        doc.text(String(v),cx+(align==='right'?widths[i]-2:2),y+rowH-2,{align:align==='right'?'right':'left',maxWidth:widths[i]-4});
+        cx+=widths[i];
+      });
+      y+=rowH;
+      doc.setDrawColor(...COL_BORDER);doc.setLineWidth(0.15);
+      doc.line(x0,y,x0+widths.reduce((a,b)=>a+b,0),y);
+    }
+
+    // ══ HEADER ══
+    doc.setFillColor(...COL_DARK);
+    doc.rect(0,0,W,30,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(255,255,255);
+    doc.text('HIELOS ANTÁRTICA',margin,15);
+    doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(190,225,245);
+    doc.text('Resumen y Liquidación de Ruta',margin,23);
+    doc.setFontSize(8.5);doc.setTextColor(150,190,215);
+    doc.text(`Generado: ${new Date().toLocaleString('es-CO')}`,W-margin,23,{align:'right'});
+    y=38;
+
+    // ══ INFO CONDUCTOR ══
+    doc.setDrawColor(...COL_BORDER);doc.setFillColor(...COL_BG);
+    doc.roundedRect(margin,y,innerW,18,2,2,'FD');
+    doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(...COL_DARK);
+    doc.text((D.ruta.conductor||'—').toUpperCase(),margin+4,y+7.5);
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...COL_LIGHT);
+    const infoLinea=[D.ruta.fecha,D.ruta.vehiculo||'Sin vehículo',D.ruta.auxiliar?'Aux: '+D.ruta.auxiliar:''].filter(Boolean).join('   ·   ');
+    doc.text(infoLinea,margin+4,y+14);
+    y+=25;
+
+    // ══ RESUMEN DE VENTAS ══
+    sectionHeader('RESUMEN DE VENTAS');
+    const kpis=[
+      ['Total Ventas',fmtN(D.totales.totalVentas),COL_CYAN],
+      ['N° Ventas',String(D.totales.numVentas),COL_TEXT],
+      ['Efectivo',fmtN(D.totales.totalEfectivo),COL_SUCCESS],
+      ['Transferencia',fmtN(D.totales.totalTransf),[107,79,187]],
+      ['Fiados',fmtN(D.totales.totalFiados),COL_WARN],
+      ['Cartera Cobrada',fmtN(D.totales.totalCartera),COL_SUCCESS]
+    ];
+    const kpiW=innerW/3,kpiH=17;
+    kpis.forEach((k,i)=>{
+      const col=i%3,row=Math.floor(i/3);
+      const kx=margin+col*kpiW,ky=y+row*kpiH;
+      doc.setDrawColor(...COL_BORDER);doc.setFillColor(255,255,255);
+      doc.roundedRect(kx+1,ky,kpiW-2,kpiH-2,1.5,1.5,'FD');
+      doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...COL_LIGHT);
+      doc.text(k[0].toUpperCase(),kx+4,ky+5.5);
+      doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...k[2]);
+      doc.text(k[1],kx+4,ky+12.5);
+    });
+    y+=kpiH*2+8;
+
+    // ══ CUADRE DE BOLSAS ══
+    sectionHeader('CUADRE DE BOLSAS');
+    const bw=[70,innerW-70-innerW*0.2*2-0,0,0];
+    const colW=[70,(innerW-70)/3,(innerW-70)/3,(innerW-70)/3];
+    tableHeaderRow([{label:'Concepto'},{label:'20 KG',align:'right'},{label:'10 KG',align:'right'},{label:'3 KG',align:'right'}],colW,margin);
+    const b=D.bolsas;
+    tableRow(['Cargue inicial',b.salida.b20,b.salida.b10,b.salida.b3],colW,margin,{aligns:['left','right','right','right']});
+    if(!b.recargues.length){
+      tableRow(['Recargues','—','—','—'],colW,margin,{aligns:['left','right','right','right']});
+    }else{
+      b.recargues.forEach((r,i)=>{
+        tableRow([`Recargue ${i+1} (${r.hora})`,r.b20,r.b10,r.b3],colW,margin,{aligns:['left','right','right','right']});
+      });
+    }
+    tableRow(['TOTAL DISPONIBLE',b.totalDisponible.b20,b.totalDisponible.b10,b.totalDisponible.b3],colW,margin,{bold:true,color:COL_CYAN,aligns:['left','right','right','right']});
+    tableRow(['Vendidas en ruta',b.vendidas.b20,b.vendidas.b10,b.vendidas.b3],colW,margin,{aligns:['left','right','right','right']});
+    if(b.devoluciones.length){
+      b.devoluciones.forEach((d,i)=>{
+        tableRow([`Devolución ${i+1} (${d.hora})`,d.b20,d.b10,d.b3],colW,margin,{aligns:['left','right','right','right']});
+      });
+    }
+    if(b.regalias.b20||b.regalias.b10||b.regalias.b3){
+      tableRow(['Regalías entregadas',b.regalias.b20,b.regalias.b10,b.regalias.b3],colW,margin,{color:COL_WARN,aligns:['left','right','right','right']});
+    }
+    if(b.cambios.b20||b.cambios.b10||b.cambios.b3){
+      tableRow(['Cambios realizados',b.cambios.b20,b.cambios.b10,b.cambios.b3],colW,margin,{color:COL_CYAN,aligns:['left','right','right','right']});
+    }
+    tableRow(['SOBRANTES EN CAMIÓN',b.sobrantes.b20,b.sobrantes.b10,b.sobrantes.b3],colW,margin,{bold:true,color:COL_DANGER,aligns:['left','right','right','right']});
+    y+=8;
+
+    // ══ VENTAS POR PRECIO ══
+    const precios=Object.values(D.precioMap||{}).sort((a,b)=>b.total-a.total);
+    if(precios.length){
+      sectionHeader('VENTAS POR PRECIO');
+      const pw=[45,45,45,innerW-135];
+      tableHeaderRow([{label:'Presentación'},{label:'Precio Unit.',align:'right'},{label:'Cantidad',align:'right'},{label:'Total',align:'right'}],pw,margin);
+      precios.forEach((g,i)=>{
+        tableRow([g.pres,fmtN(g.precio),String(g.qty),fmtN(g.total)],pw,margin,{shade:i%2===1,aligns:['left','right','right','right']});
+      });
+      y+=8;
+    }
+
+    // ══ CLIENTES CON FIADO ══
+    if(D.fiados.length){
+      sectionHeader('CLIENTES CON FIADO');
+      const fw=[65,55,innerW-65-55-innerW*0,0];
+      const fw2=[60,innerW-60-45,45];
+      tableHeaderRow([{label:'Cliente'},{label:'Detalle'},{label:'Debe',align:'right'}],fw2,margin);
+      D.fiados.forEach((e,i)=>{
+        const det=[e.b20>0?`${e.b20}×20`:'',e.b10>0?`${e.b10}×10`:'',e.b3>0?`${e.b3}×3`:''].filter(Boolean).join(' ');
+        tableRow([e.cliente+(e.tipo?' ('+e.tipo+')':''),det||'—',fmtN(e.debe)],fw2,margin,{shade:i%2===1,aligns:['left','left','right']});
+      });
+      const totalFiadosTabla=D.fiados.reduce((s,e)=>s+e.debe,0);
+      tableRow(['','TOTAL',fmtN(totalFiadosTabla)],fw2,margin,{bold:true,color:COL_WARN,aligns:['left','left','right']});
+      y+=8;
+    }
+
+    // ══ CARTERA COBRADA EN RUTA ══
+    if(D.cobros.length){
+      sectionHeader('CARTERA COBRADA EN RUTA');
+      const cw=[innerW-45,45];
+      tableHeaderRow([{label:'Cliente / Nota'},{label:'Valor',align:'right'}],cw,margin);
+      D.cobros.forEach((c,i)=>{
+        const lbl=c.cliente+(c.esGlobal?' (global)':'')+(c.nota?' — '+c.nota:'');
+        tableRow([lbl,fmtN(c.valor)],cw,margin,{shade:i%2===1,color:COL_SUCCESS,aligns:['left','right']});
+      });
+      y+=8;
+    }
+
+    // ══ LIQUIDACIÓN FINAL ══
+    checkBreak(70);
+    sectionHeader('LIQUIDACIÓN FINAL');
+    const liqRows=[
+      ['Efectivo ventas',fmtN(D.totales.totalEfectivo)],
+      ['Transferencias',fmtN(D.totales.totalTransf)],
+      ['Cartera cobrada',fmtN(D.totales.totalCartera)],
+      ['Total gastos',`− ${fmtN(D.totales.totalGastos)}`]
+    ];
+    doc.setDrawColor(...COL_BORDER);doc.setFillColor(255,255,255);
+    doc.roundedRect(margin,y,innerW,liqRows.length*7+4,1.5,1.5,'FD');
+    y+=5;
+    liqRows.forEach(r=>{
+      doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(...COL_TEXT);
+      doc.text(r[0],margin+5,y);
+      doc.setFont('helvetica','bold');
+      doc.text(r[1],W-margin-5,y,{align:'right'});
+      y+=7;
+    });
+    y+=6;
+    // Caja destacada: A CONSIGNAR
+    doc.setFillColor(...COL_SUCCESS);
+    doc.roundedRect(margin,y,innerW,16,2,2,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255,255,255);
+    doc.text('EFECTIVO A CONSIGNAR',margin+5,y+10.5);
+    doc.setFontSize(15);
+    doc.text(fmtN(D.consignar),W-margin-5,y+11,{align:'right'});
+    y+=22;
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...COL_LIGHT);
+    doc.text('Ya consignado (transferencias): '+fmtN(D.totales.totalTransf),margin,y);
+
+    footer();
+    const nombreArchivo=`liquidacion_${(D.ruta.conductor||'ruta').replace(/[^a-z0-9]+/gi,'_')}_${D.ruta.fecha}.pdf`;
+    doc.save(nombreArchivo);
+    showToast('✅ PDF generado');
+  }catch(e){hideLoading();showToast('Error al generar PDF: '+e.message);}
 }
 
 // ===== ALEGRA CONFIG =====
