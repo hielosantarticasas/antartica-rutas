@@ -979,6 +979,7 @@
       <div class="highlight-row"><span class="hl-label">Vendidas en ruta</span><span class="hl-val" id="res-vendidas">—</span></div>
       <div id="res-devoluciones-rows"></div>
       <div class="highlight-row"><span class="hl-label" style="font-weight:700;">Sobrantes en camión</span><span class="hl-val" id="res-sobrantes" style="color:var(--danger)">—</span></div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:-4px;margin-bottom:8px;">Las devoluciones pendientes de confirmar en Planta siguen contando como sobrantes.</div>
     <div class="highlight-row" id="res-regalias-row" style="display:none;"><span class="hl-label">🎁 Regalías entregadas</span><span class="hl-val" id="res-regalias" style="color:var(--warning)">—</span></div>
     <div class="highlight-row" id="res-cambios-row" style="display:none;"><span class="hl-label">🔄 Cambios realizados</span><span class="hl-val" id="res-cambios" style="color:var(--cyan)">—</span></div>
     </div>
@@ -5851,7 +5852,7 @@ async function cargarResumen(){
       sbGet('gastos',`ruta_id=eq.${rutaActivaId}&select=valor`),
       sbGet('cobros_cartera',`ruta_id=eq.${rutaActivaId}&select=cliente,es_global,nota,valor`),
       sbGet('rutas',`id=eq.${rutaActivaId}&select=salida_b20,salida_b10,salida_b3`),
-      sbGet('devoluciones',`ruta_id=eq.${rutaActivaId}&select=hora,b20,b10,b3`)
+      sbGet('devoluciones',`ruta_id=eq.${rutaActivaId}&select=hora,b20,b10,b3,confirmada`)
     ]);
     const ruta=rutaRows[0];
     const totalVentas=ventas.reduce((s,e)=>s+Number(e.precio),0);
@@ -5872,9 +5873,13 @@ async function cargarResumen(){
     const cam3=ventas.reduce((s,e)=>s+(e.cambios_b3||0),0);
     const recB20=recargues.reduce((s,r)=>s+r.b20,0),recB10=recargues.reduce((s,r)=>s+r.b10,0),recB3=recargues.reduce((s,r)=>s+r.b3,0);
     const tot20=(ruta.salida_b20||0)+recB20,tot10=(ruta.salida_b10||0)+recB10,tot3=(ruta.salida_b3||0)+recB3;
-    const dev20=devoluciones.reduce((s,d)=>s+d.b20,0);
-    const dev10=devoluciones.reduce((s,d)=>s+d.b10,0);
-    const dev3=devoluciones.reduce((s,d)=>s+d.b3,0);
+    // Solo las devoluciones YA CONFIRMADAS por Planta se descuentan del cuadre.
+    // Mientras estén pendientes de validar, las bolsas siguen contando como
+    // "sobrantes en camión" (el conductor las sigue teniendo físicamente).
+    const devConfirmadas=devoluciones.filter(d=>d.confirmada===true);
+    const dev20=devConfirmadas.reduce((s,d)=>s+d.b20,0);
+    const dev10=devConfirmadas.reduce((s,d)=>s+d.b10,0);
+    const dev3=devConfirmadas.reduce((s,d)=>s+d.b3,0);
 
     document.getElementById('res-total-ventas').textContent=fmt(totalVentas);
     document.getElementById('res-num-ventas').textContent=ventas.length;
@@ -5906,7 +5911,9 @@ async function cargarResumen(){
     }else{
       devDiv.innerHTML=devoluciones.map((d,i)=>`
         <div class="highlight-row">
-          <span class="hl-label">Devolución ${i+1} <span style="font-size:11px;color:var(--text-light);">(${d.hora||''})</span></span>
+          <span class="hl-label">Devolución ${i+1} <span style="font-size:11px;color:var(--text-light);">(${d.hora||''})</span>
+            ${d.confirmada?'<br><span style="font-size:11px;color:var(--success);font-weight:700;">✅ Confirmada por Planta</span>':'<br><span style="font-size:11px;color:var(--warning);font-weight:700;">⏳ Pendiente de confirmar en Planta</span>'}
+          </span>
           <span class="hl-val" style="color:var(--danger)">${[d.b20>0?`${d.b20}×20`:'',d.b10>0?`${d.b10}×10`:'',d.b3>0?`${d.b3}×3`:''].filter(Boolean).join(' · ')}</span>
         </div>`).join('');
     }
@@ -5996,7 +6003,7 @@ async function cargarResumen(){
         recargues:recargues.map(r=>({hora:r.hora||'',b20:r.b20,b10:r.b10,b3:r.b3})),
         totalDisponible:{b20:tot20,b10:tot10,b3:tot3},
         vendidas:{b20:bV20,b10:bV10,b3:bV3},
-        devoluciones:devoluciones.map(d=>({hora:d.hora||'',b20:d.b20,b10:d.b10,b3:d.b3})),
+        devoluciones:devoluciones.map(d=>({hora:d.hora||'',b20:d.b20,b10:d.b10,b3:d.b3,confirmada:!!d.confirmada})),
         sobrantes:{b20:Math.max(0,tot20-bV20-reg20-dev20),b10:Math.max(0,tot10-bV10-reg10-dev10),b3:Math.max(0,tot3-bV3-reg3-dev3)},
         regalias:{b20:reg20,b10:reg10,b3:reg3},
         cambios:{b20:cam20,b10:cam10,b3:cam3}
@@ -6142,7 +6149,8 @@ async function exportarResumenRutaPDF(){
     tableRow(['Vendidas en ruta',b.vendidas.b20,b.vendidas.b10,b.vendidas.b3],colW,margin,{aligns:['left','right','right','right']});
     if(b.devoluciones.length){
       b.devoluciones.forEach((d,i)=>{
-        tableRow([`Devolución ${i+1} (${d.hora})`,d.b20,d.b10,d.b3],colW,margin,{aligns:['left','right','right','right']});
+        const estado=d.confirmada?'✓ confirmada':'pendiente';
+        tableRow([`Devolución ${i+1} (${d.hora}) — ${estado}`,d.b20,d.b10,d.b3],colW,margin,{color:d.confirmada?COL_TEXT:COL_WARN,aligns:['left','right','right','right']});
       });
     }
     if(b.regalias.b20||b.regalias.b10||b.regalias.b3){
