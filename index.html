@@ -2186,6 +2186,12 @@
       <div id="cr-fiados-lista"></div>
     </div>
 
+    <!-- Responsable + exportar -->
+    <div class="card">
+      <label style="margin-bottom:4px;">👤 Nombre del responsable de estos despachos</label>
+      <input type="text" id="cr-responsable" placeholder="Ej: Juan Pérez" style="margin-bottom:0;">
+    </div>
+
     <button onclick="exportarResumenCavaPDF()" style="width:100%;background:rgba(0,153,204,.1);border:1px solid rgba(0,153,204,.3);color:var(--cyan);border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px;">📄 Exportar PDF</button>
     <button class="btn btn-success" onclick="liquidarTurnoCava()" style="margin-top:4px;">✅ CERRAR Y LIQUIDAR TURNO</button>
   </div>
@@ -6258,9 +6264,13 @@ async function exportarResumenRutaPDF(){
 
 async function exportarResumenCavaPDF(){
   if(!_resumenCavaData){showToast('Primero carga el resumen.');return;}
-  const responsable=prompt('👤 Nombre del responsable de estos despachos:','');
-  if(responsable===null)return;
-  if(!responsable.trim()){showToast('Debes ingresar un nombre.');return;}
+  const respEl=document.getElementById('cr-responsable');
+  const responsable=(respEl&&respEl.value.trim())||'';
+  if(!responsable){
+    showToast('⚠️ Ingresa el nombre del responsable antes de exportar.');
+    if(respEl){respEl.style.borderColor='var(--danger)';respEl.focus();}
+    return;
+  }
   showLoading('Generando PDF...');
   try{
     if(!window.jspdf){
@@ -7444,7 +7454,7 @@ async function registrarCobroCavaDirecto(despId, totalOriginal, btn){
   const cobrador=cobradorInput?cobradorInput.value.trim():'';
   showLoading('Registrando cobro...');
   try{
-    await sbPatch('despachos_cava',despId,{cobrado:monto>=totalOriginal,abono_cava:monto,vendedor_asignado:cobrador||undefined});
+    await sbPatch('despachos_cava',despId,{cobrado:monto>=totalOriginal,abono_cava:monto,vendedor_asignado:cobrador||undefined,cobro_at:new Date().toISOString()});
     hideLoading();showToast('✅ Cobro registrado: '+fmt(monto));
     cargarCavaCartera();
     cargarCarteraGlobal();
@@ -8327,9 +8337,9 @@ async function cargarResumenCava(){
     const {fecha,desde,hasta}=rango;
     const [data, cobrosCartera, gastosData]=await Promise.all([
       sbGet('despachos_cava',`created_at=gte.${desde}&created_at=lte.${hasta}&order=created_at.asc`),
-      // Cobros de cartera cava = despachos CON abono_cava registrado (cualquier fecha)
-      // Solo los que tienen abono y son de planta (no ruta)
-      sbGet('despachos_cava',`abono_cava=gt.0&tipo=neq.ruta&select=destino,abono_cava,total,tipo,hora,fecha,forma_pago`).catch(()=>[]),
+      // Cobros de cartera cava = abonos registrados DENTRO del período filtrado (por cobro_at),
+      // sin importar si la venta/fiado original fue creada en otro día.
+      sbGet('despachos_cava',`abono_cava=gt.0&tipo=neq.ruta&cobro_at=gte.${desde}&cobro_at=lte.${hasta}&select=destino,abono_cava,total,tipo,hora,fecha,cobro_at,forma_pago&order=cobro_at.asc`).catch(()=>[]),
       sbGet('gastos_cava',`created_at=gte.${desde}&created_at=lte.${hasta}&order=created_at.desc`).catch(()=>[])
     ]);
     const ventas=data.filter(d=>d.tipo!=='ruta');
@@ -8368,14 +8378,10 @@ async function cargarResumenCava(){
     const mpT=document.getElementById('cr-mp-transf');if(mpT)mpT.textContent=fmt(transf);
     const mpF=document.getElementById('cr-mp-fiado');if(mpF)mpF.textContent=fmt(fiados);
 
-    // Cobros de cartera de planta:
-    // 1. Fiados del período con abono ya registrado
-    const fiadosPeriodoConAbono=data.filter(d=>d.forma_pago==='fiado'&&Number(d.abono_cava||0)>0&&d.tipo!=='ruta');
-    // 2. Fiados de otros días (fecha distinta a la filtrada)
-    const cobrosAnteriores=cobrosCartera.filter(d=>d.fecha!==fecha);
-    const totalCobrosCartera=
-      fiadosPeriodoConAbono.reduce((s,d)=>s+Number(d.abono_cava||0),0)+
-      cobrosAnteriores.reduce((s,d)=>s+Number(d.abono_cava||0),0);
+    // Cobros de cartera de planta: abonos cuyo cobro_at cae dentro del período filtrado
+    // (sin importar si la venta/fiado original es de otro día — el query ya lo filtró).
+    const cobrosPeriodo=cobrosCartera;
+    const totalCobrosCartera=cobrosPeriodo.reduce((s,d)=>s+Number(d.abono_cava||0),0);
 
     // Liquidación final
     const ef2=document.getElementById('cr-ef2');if(ef2)ef2.textContent=fmt(efectivo);
@@ -8405,19 +8411,15 @@ async function cargarResumenCava(){
       }).join('');}
     }
 
-    // Cobros de cartera — detalle
+    // Cobros de cartera — detalle (abonos cobrados dentro del período filtrado)
     const ccLista=document.getElementById('cr-cobros-lista');
     if(ccLista){
-      const todosLosAbonos=[
-        ...fiadosPeriodoConAbono.map(d=>({...d,_label:'Este período'})),
-        ...cobrosAnteriores.map(d=>({...d,_label:d.fecha}))
-      ];
-      if(todosLosAbonos.length&&totalCobrosCartera>0){
-        ccLista.innerHTML=todosLosAbonos.map(d=>`
+      if(cobrosPeriodo.length&&totalCobrosCartera>0){
+        ccLista.innerHTML=cobrosPeriodo.map(d=>`
           <div class="highlight-row">
             <span class="hl-label"><strong>${d.destino||'Cliente'}</strong>
               <br><span style="font-size:11px;color:var(--text-light);">
-                📅 Fiado del ${d._label} · Total: ${fmt(d.total||0)}
+                📅 Fiado del ${d.fecha===fecha?'mismo día':d.fecha} · Total: ${fmt(d.total||0)}
               </span>
             </span>
             <span class="hl-val" style="color:var(--success);">+${fmt(Number(d.abono_cava||0))}</span>
@@ -8466,7 +8468,7 @@ async function cargarResumenCava(){
       rango,
       stats:{numDespachos:ventas.length,totalVendido,efectivo,transf,fiados,totalGastos},
       bolsas:{totB20,totB10,totB3,porTipo},
-      cobrosCartera:[...fiadosPeriodoConAbono,...cobrosAnteriores].map(d=>({destino:d.destino,fecha:d.fecha,total:Number(d.total||0),abono:Number(d.abono_cava||0)})),
+      cobrosCartera:cobrosPeriodo.map(d=>({destino:d.destino,fecha:d.fecha,total:Number(d.total||0),abono:Number(d.abono_cava||0)})),
       totalCobrosCartera,
       gastos:gastosData.map(g=>({categoria:g.categoria||'',descripcion:g.descripcion||'',nota:g.nota||'',hora:g.hora||'',valor:Number(g.valor||0)})),
       despachos:data.map(d=>({destino:d.destino,tipo:d.tipo,b20:d.b20,b10:d.b10,b3:d.b3,hora:d.hora||'',formaPago:d.forma_pago||'',total:Number(d.total||0)})),
