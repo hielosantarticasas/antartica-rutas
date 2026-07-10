@@ -1599,8 +1599,8 @@
       <div onclick="abrirModuloPlanta('planta-resumen')" style="background:linear-gradient(135deg,#1a0f2a,#0f0020);border-radius:18px;padding:18px 14px;cursor:pointer;border:1px solid rgba(167,139,250,.2);position:relative;overflow:hidden;grid-column:1/-1;">
         <div style="position:absolute;bottom:-10px;right:-10px;font-size:50px;opacity:.1;">📊</div>
         <div style="font-size:26px;margin-bottom:6px;">📊</div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;color:#fff;">Resumen del Turno</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">Liquidación · cuadre · cierre</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;color:#fff;">Resumen y Liquidación</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">Despachos · gastos · consignación</div>
       </div>
     </div>
   </div>
@@ -1688,7 +1688,7 @@
 <div class="screen" id="planta-resumen">
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
     <button onclick="volverPlanta()" style="background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.3);color:#a78bfa;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;">← Planta</button>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:1px;">📊 RESUMEN</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:1px;">📊 RESUMEN Y LIQUIDACIÓN</div>
   </div>
   <div id="planta-resumen-content"></div>
 </div>
@@ -2103,6 +2103,19 @@
 
   <!-- ── TAB: RESUMEN ── -->
   <div id="ctab-resumen" style="display:none;">
+    <!-- Filtro fecha + hora -->
+    <div class="card">
+      <div class="card-title">🔍 FILTRAR PERIODO</div>
+      <label style="margin-bottom:4px;">Fecha</label>
+      <input type="date" id="cr-filtro-fecha" style="margin-bottom:8px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div><label style="margin-bottom:4px;">Hora desde</label><input type="time" id="cr-filtro-hora-desde"></div>
+        <div><label style="margin-bottom:4px;">Hora hasta</label><input type="time" id="cr-filtro-hora-hasta"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:6px;">Deja las horas vacías para ver el día completo.</div>
+      <button class="btn btn-primary" onclick="cargarResumenCava()" style="margin-top:10px;">🔄 Filtrar</button>
+    </div>
+
     <!-- Stats rápidos -->
     <div class="stats-grid" style="margin-bottom:14px;">
       <div class="stat-box"><div class="stat-label">Despachos</div><div class="stat-value dark"   id="cr-num-despachos">0</div></div>
@@ -2110,22 +2123,12 @@
       <div class="stat-box"><div class="stat-label">Efectivo</div><div class="stat-value green"  id="cr-efectivo">$0</div></div>
       <div class="stat-box"><div class="stat-label">Transf.</div><div class="stat-value purple" id="cr-transf">$0</div></div>
       <div class="stat-box"><div class="stat-label">Fiados</div><div class="stat-value yellow"  id="cr-fiados">$0</div></div>
-      <div class="stat-box"><div class="stat-label">Traslados</div><div class="stat-value dark"   id="cr-traslados">0</div></div>
+      <div class="stat-box"><div class="stat-label">Gastos</div><div class="stat-value dark" style="color:var(--danger);" id="cr-gastos-stat">$0</div></div>
     </div>
 
-    <!-- Producción del día (desplegable) -->
+    <!-- Presentaciones despachadas -->
     <div class="card">
-      <div onclick="toggleCrProd()" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;margin-bottom:0;">
-        <div class="card-title" style="margin-bottom:0;">🏭 PRODUCCIÓN DEL DÍA</div>
-        <span id="cr-prod-arrow" style="font-size:11px;color:var(--text-light);">▼</span>
-      </div>
-      <div id="cr-resumen-produccion-hoy" style="margin-top:10px;margin-bottom:8px;"></div>
-      <div id="cr-lista-produccion" style="display:none;"><div class="empty" style="padding:10px 0;"><div class="empty-icon">🏭</div>Sin tandas hoy.</div></div>
-    </div>
-
-    <!-- Cuadre de bolsas por tipo -->
-    <div class="card">
-      <div class="card-title">CUADRE DE BOLSAS DESPACHADAS</div>
+      <div class="card-title">📦 PRESENTACIONES DESPACHADAS</div>
       <div class="highlight-row"><span class="hl-label">Traslados a rutas</span><span class="hl-val" id="cr-bol-rutas">—</span></div>
       <div class="highlight-row"><span class="hl-label">Venta Puerta</span><span class="hl-val" id="cr-bol-puerta">—</span></div>
       <div class="highlight-row"><span class="hl-label">Revendedores</span><span class="hl-val" id="cr-bol-revendedor">—</span></div>
@@ -2136,30 +2139,45 @@
       </div>
     </div>
 
-    <!-- Cuadre financiero -->
+    <!-- Medios de pago -->
     <div class="card">
-      <div class="card-title">CUADRE FINANCIERO</div>
+      <div class="card-title">💳 MEDIOS DE PAGO</div>
+      <div class="highlight-row"><span class="hl-label">💵 Efectivo</span><span class="hl-val" style="color:var(--success)" id="cr-mp-efectivo">$0</span></div>
+      <div class="highlight-row"><span class="hl-label">🏦 Transferencia</span><span class="hl-val" style="color:var(--transfer)" id="cr-mp-transf">$0</span></div>
+      <div class="highlight-row"><span class="hl-label">⏳ Fiado (por cobrar)</span><span class="hl-val" style="color:var(--warning)" id="cr-mp-fiado">$0</span></div>
+    </div>
+
+    <!-- Cobros de cartera -->
+    <div class="card">
+      <div class="card-title" style="color:var(--success);">✅ COBROS DE CARTERA</div>
+      <div id="cr-cobros-lista"><div style="font-size:13px;color:var(--text-light);">Sin cobros en este período.</div></div>
+    </div>
+
+    <!-- Gastos -->
+    <div class="card">
+      <div class="card-title" style="color:var(--danger);">💸 GASTOS</div>
+      <div id="cr-gastos-lista"><div style="font-size:13px;color:var(--text-light);">Sin gastos en este período.</div></div>
+    </div>
+
+    <!-- Liquidación final -->
+    <div class="card">
+      <div class="card-title">LIQUIDACIÓN FINAL</div>
       <div class="highlight-row"><span class="hl-label">Efectivo ventas</span><span class="hl-val" id="cr-ef2">$0</span></div>
       <div class="highlight-row"><span class="hl-label">Transferencias</span><span class="hl-val" style="color:var(--transfer)" id="cr-transf2">$0</span></div>
-      <div class="highlight-row"><span class="hl-label">Fiados nuevos (por cobrar)</span><span class="hl-val" style="color:var(--warning)" id="cr-fiados2">$0</span></div>
-      <div class="highlight-row"><span class="hl-label">💰 Cobros de cartera recibidos</span><span class="hl-val" style="color:var(--success)" id="cr-cobros-cartera">$0</span></div>
+      <div class="highlight-row"><span class="hl-label">💰 Cobros de cartera</span><span class="hl-val" style="color:var(--success)" id="cr-cobros-cartera">$0</span></div>
+      <div class="highlight-row"><span class="hl-label">Total gastos</span><span class="hl-val" style="color:var(--danger)" id="cr-gastos-total">$0</span></div>
       <div class="divider"></div>
       <div class="highlight-row">
-        <span class="hl-label" style="font-weight:700;font-size:15px;">Efectivo a entregar</span>
+        <span class="hl-label" style="font-weight:700;font-size:15px;">Efectivo a consignar</span>
         <span class="hl-val" style="color:var(--success);font-size:22px;" id="cr-a-entregar">$0</span>
       </div>
+      <div class="highlight-row"><span class="hl-label">Ya consignado (transf.)</span><span class="hl-val" style="color:var(--transfer)" id="cr-ya-consignado">$0</span></div>
     </div>
 
-    <!-- Detalle por cliente -->
+    <!-- Reporte de despachos -->
     <div class="card">
-      <div class="card-title">DETALLE POR CLIENTE</div>
+      <div class="card-title">📋 REPORTE DE DESPACHOS</div>
       <div id="cr-detalle-clientes"><div class="empty" style="padding:14px 0;">Sin despachos.</div></div>
-    </div>
-
-    <!-- Cobros de cartera recibidos hoy -->
-    <div id="cr-cobros-bloque" style="display:none;" class="card">
-      <div class="card-title" style="color:var(--success);">✅ COBROS DE CARTERA HOY</div>
-      <div id="cr-cobros-lista"></div>
     </div>
 
     <!-- Fiados -->
@@ -2168,6 +2186,7 @@
       <div id="cr-fiados-lista"></div>
     </div>
 
+    <button onclick="exportarResumenCavaPDF()" style="width:100%;background:rgba(0,153,204,.1);border:1px solid rgba(0,153,204,.3);color:var(--cyan);border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px;">📄 Exportar PDF</button>
     <button class="btn btn-success" onclick="liquidarTurnoCava()" style="margin-top:4px;">✅ CERRAR Y LIQUIDAR TURNO</button>
   </div>
 
@@ -2845,6 +2864,10 @@ function abrirModuloPlanta(modulo){
     m.fn();
     if(modulo==='planta-desp'){
       const fe=document.getElementById('cav-fecha');
+      if(fe&&!fe.value)fe.value=fechaCorta();
+    }
+    if(modulo==='planta-resumen'){
+      const fe=document.getElementById('cr-filtro-fecha');
       if(fe&&!fe.value)fe.value=fechaCorta();
     }
   }
@@ -6233,6 +6256,217 @@ async function exportarResumenRutaPDF(){
   }catch(e){hideLoading();showToast('Error al generar PDF: '+e.message);}
 }
 
+async function exportarResumenCavaPDF(){
+  if(!_resumenCavaData){showToast('Primero carga el resumen.');return;}
+  const responsable=prompt('👤 Nombre del responsable de estos despachos:','');
+  if(responsable===null)return;
+  if(!responsable.trim()){showToast('Debes ingresar un nombre.');return;}
+  showLoading('Generando PDF...');
+  try{
+    if(!window.jspdf){
+      await new Promise((res,rej)=>{
+        const s=document.createElement('script');
+        s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload=res;s.onerror=rej;document.head.appendChild(s);
+      });
+    }
+    const D=_resumenCavaData;
+    hideLoading();
+    const {jsPDF}=window.jspdf||{};
+    if(!jsPDF){showToast('Error: jsPDF no disponible');return;}
+    const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const W=210,H=297,margin=15,innerW=W-margin*2;
+    const COL_DARK=[10,42,74],COL_CYAN=[0,153,204],COL_SUCCESS=[0,150,110],
+          COL_DANGER=[204,34,51],COL_WARN=[184,120,0],COL_TEXT=[30,35,45],
+          COL_LIGHT=[110,120,135],COL_BORDER=[220,224,230],COL_BG=[244,247,250];
+    let y=0,pageNum=1;
+
+    function fmtN(n){return '$'+Math.round(Number(n||0)).toLocaleString('es-CO');}
+    function footer(){
+      doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...COL_LIGHT);
+      doc.text(`Hielos Antártica — Documento generado el ${new Date().toLocaleString('es-CO')}`,margin,H-8);
+      doc.text(`Pág. ${pageNum}`,W-margin,H-8,{align:'right'});
+    }
+    function checkBreak(need){
+      if(y+need>H-16){footer();doc.addPage();pageNum++;y=18;}
+    }
+    function sectionHeader(title){
+      checkBreak(14);
+      doc.setFillColor(...COL_DARK);
+      doc.roundedRect(margin,y,innerW,8,1.5,1.5,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.setTextColor(255,255,255);
+      doc.text(title,margin+4,y+5.7);
+      y+=13;
+    }
+    function tableHeaderRow(cols,widths,x0){
+      checkBreak(9);
+      doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(255,255,255);
+      doc.setFillColor(...COL_CYAN);
+      doc.rect(x0,y,widths.reduce((a,b)=>a+b,0),6.5,'F');
+      let cx=x0;
+      cols.forEach((c,i)=>{
+        doc.text(c.label,cx+(c.align==='right'?widths[i]-2:2),y+4.4,{align:c.align==='right'?'right':'left'});
+        cx+=widths[i];
+      });
+      y+=6.5;
+    }
+    function tableRow(vals,widths,x0,opts={}){
+      const rowH=opts.h||6;
+      checkBreak(rowH+2);
+      if(opts.shade){doc.setFillColor(...COL_BG);doc.rect(x0,y,widths.reduce((a,b)=>a+b,0),rowH,'F');}
+      doc.setFont('helvetica',opts.bold?'bold':'normal');doc.setFontSize(8.5);
+      doc.setTextColor(...(opts.color||COL_TEXT));
+      let cx=x0;
+      vals.forEach((v,i)=>{
+        const align=opts.aligns?opts.aligns[i]:'left';
+        doc.text(String(v),cx+(align==='right'?widths[i]-2:2),y+rowH-2,{align:align==='right'?'right':'left',maxWidth:widths[i]-4});
+        cx+=widths[i];
+      });
+      y+=rowH;
+      doc.setDrawColor(...COL_BORDER);doc.setLineWidth(0.15);
+      doc.line(x0,y,x0+widths.reduce((a,b)=>a+b,0),y);
+    }
+
+    const rangoLabel=(D.rango.horaDesde||D.rango.horaHasta)
+      ? `${D.rango.horaDesde||'00:00'} — ${D.rango.horaHasta||'23:59'}`
+      : 'Día completo';
+
+    // ══ HEADER ══
+    doc.setFillColor(...COL_DARK);
+    doc.rect(0,0,W,30,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(255,255,255);
+    doc.text('HIELOS ANTÁRTICA',margin,15);
+    doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(190,225,245);
+    doc.text('Resumen y Liquidación de Despachos y Gastos — Planta',margin,23);
+    doc.setFontSize(8.5);doc.setTextColor(150,190,215);
+    doc.text(`Generado: ${new Date().toLocaleString('es-CO')}`,W-margin,23,{align:'right'});
+    y=38;
+
+    // ══ INFO DEL FILTRO ══
+    doc.setDrawColor(...COL_BORDER);doc.setFillColor(...COL_BG);
+    doc.roundedRect(margin,y,innerW,18,2,2,'FD');
+    doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(...COL_DARK);
+    doc.text('Responsable: '+responsable.trim().toUpperCase(),margin+4,y+7.5);
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...COL_LIGHT);
+    doc.text(`📅 ${D.rango.fecha}   ·   🕐 ${rangoLabel}`,margin+4,y+14);
+    y+=25;
+
+    // ══ RESUMEN DE DESPACHOS ══
+    sectionHeader('RESUMEN DE DESPACHOS');
+    const kpis=[
+      ['Despachos',String(D.stats.numDespachos),COL_TEXT],
+      ['Total Vendido',fmtN(D.stats.totalVendido),COL_CYAN],
+      ['Efectivo',fmtN(D.stats.efectivo),COL_SUCCESS],
+      ['Transferencia',fmtN(D.stats.transf),[107,79,187]],
+      ['Fiados',fmtN(D.stats.fiados),COL_WARN],
+      ['Gastos',fmtN(D.stats.totalGastos),COL_DANGER]
+    ];
+    const kpiW=innerW/3,kpiH=17;
+    kpis.forEach((k,i)=>{
+      const col=i%3,row=Math.floor(i/3);
+      const kx=margin+col*kpiW,ky=y+row*kpiH;
+      doc.setDrawColor(...COL_BORDER);doc.setFillColor(255,255,255);
+      doc.roundedRect(kx+1,ky,kpiW-2,kpiH-2,1.5,1.5,'FD');
+      doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...COL_LIGHT);
+      doc.text(k[0].toUpperCase(),kx+4,ky+5.5);
+      doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...k[2]);
+      doc.text(k[1],kx+4,ky+12.5);
+    });
+    y+=kpiH*2+8;
+
+    // ══ PRESENTACIONES DESPACHADAS ══
+    sectionHeader('PRESENTACIONES DESPACHADAS');
+    const tipoLabelPdf={ruta:'Rutas',puerta:'Puerta',revendedor:'Revendedores',vendedor:'Vendedores'};
+    const pw=[70,(innerW-70)/3,(innerW-70)/3,(innerW-70)/3];
+    tableHeaderRow([{label:'Tipo'},{label:'20 KG',align:'right'},{label:'10 KG',align:'right'},{label:'3 KG',align:'right'}],pw,margin);
+    D.bolsas.porTipo.forEach((t,i)=>{
+      tableRow([tipoLabelPdf[t.tipo]||t.tipo,String(t.b20),String(t.b10),String(t.b3)],pw,margin,{shade:i%2===1,aligns:['left','right','right','right']});
+    });
+    tableRow(['TOTAL',String(D.bolsas.totB20),String(D.bolsas.totB10),String(D.bolsas.totB3)],pw,margin,{bold:true,color:COL_CYAN,aligns:['left','right','right','right']});
+    y+=8;
+
+    // ══ MEDIOS DE PAGO ══
+    sectionHeader('MEDIOS DE PAGO');
+    const mw=[innerW-45,45];
+    tableHeaderRow([{label:'Medio'},{label:'Monto',align:'right'}],mw,margin);
+    tableRow(['Efectivo',fmtN(D.stats.efectivo)],mw,margin,{color:COL_SUCCESS,aligns:['left','right']});
+    tableRow(['Transferencia',fmtN(D.stats.transf)],mw,margin,{shade:true,color:[107,79,187],aligns:['left','right']});
+    tableRow(['Fiado',fmtN(D.stats.fiados)],mw,margin,{color:COL_WARN,aligns:['left','right']});
+    y+=8;
+
+    // ══ COBROS DE CARTERA ══
+    if(D.cobrosCartera.length){
+      sectionHeader('COBROS DE CARTERA');
+      const cw=[innerW-90,45,45];
+      tableHeaderRow([{label:'Cliente'},{label:'Fecha factura',align:'right'},{label:'Abono',align:'right'}],cw,margin);
+      D.cobrosCartera.forEach((c,i)=>{
+        tableRow([c.destino||'Cliente',c.fecha||'—',fmtN(c.abono)],cw,margin,{shade:i%2===1,color:COL_SUCCESS,aligns:['left','right','right']});
+      });
+      tableRow(['','TOTAL',fmtN(D.totalCobrosCartera)],cw,margin,{bold:true,color:COL_SUCCESS,aligns:['left','right','right']});
+      y+=8;
+    }
+
+    // ══ GASTOS ══
+    if(D.gastos.length){
+      sectionHeader('GASTOS');
+      const gw=[45,innerW-45-30-45,30,45];
+      tableHeaderRow([{label:'Categoría'},{label:'Descripción'},{label:'Hora',align:'right'},{label:'Valor',align:'right'}],gw,margin);
+      D.gastos.forEach((g,i)=>{
+        tableRow([g.categoria||'—',g.descripcion||'—',g.hora||'—',fmtN(g.valor)],gw,margin,{shade:i%2===1,color:COL_DANGER,aligns:['left','left','right','right']});
+      });
+      tableRow(['','','TOTAL',fmtN(D.stats.totalGastos)],gw,margin,{bold:true,color:COL_DANGER,aligns:['left','left','right','right']});
+      y+=8;
+    }
+
+    // ══ REPORTE DE DESPACHOS (detalle) ══
+    if(D.despachos.length){
+      sectionHeader('REPORTE DE DESPACHOS');
+      const dw=[25,innerW-25-55-40,55,40];
+      tableHeaderRow([{label:'Hora'},{label:'Destino'},{label:'Detalle'},{label:'Total',align:'right'}],dw,margin);
+      D.despachos.forEach((d,i)=>{
+        const det=[d.b20>0?`${d.b20}×20`:'',d.b10>0?`${d.b10}×10`:'',d.b3>0?`${d.b3}×3`:''].filter(Boolean).join(' ');
+        tableRow([d.hora||'—',d.destino+(d.tipo?' ('+d.tipo+')':''),det||'—',d.tipo==='ruta'?'Traslado':fmtN(d.total)],dw,margin,{shade:i%2===1,aligns:['left','left','left','right']});
+      });
+      y+=8;
+    }
+
+    // ══ LIQUIDACIÓN FINAL ══
+    checkBreak(70);
+    sectionHeader('LIQUIDACIÓN FINAL');
+    const liqRows=[
+      ['Efectivo despachos',fmtN(D.stats.efectivo)],
+      ['Cobros de cartera',fmtN(D.totalCobrosCartera)],
+      ['Total gastos',`− ${fmtN(D.stats.totalGastos)}`]
+    ];
+    doc.setDrawColor(...COL_BORDER);doc.setFillColor(255,255,255);
+    doc.roundedRect(margin,y,innerW,liqRows.length*7+4,1.5,1.5,'FD');
+    y+=5;
+    liqRows.forEach(r=>{
+      doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(...COL_TEXT);
+      doc.text(r[0],margin+5,y);
+      doc.setFont('helvetica','bold');
+      doc.text(r[1],W-margin-5,y,{align:'right'});
+      y+=7;
+    });
+    y+=6;
+    // Caja destacada: A CONSIGNAR
+    doc.setFillColor(...COL_SUCCESS);
+    doc.roundedRect(margin,y,innerW,16,2,2,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255,255,255);
+    doc.text('EFECTIVO A CONSIGNAR',margin+5,y+10.5);
+    doc.setFontSize(15);
+    doc.text(fmtN(D.consignar),W-margin-5,y+11,{align:'right'});
+    y+=22;
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...COL_LIGHT);
+    doc.text('Ya consignado (transferencias): '+fmtN(D.stats.transf),margin,y);
+
+    footer();
+    const nombreArchivo=`liquidacion_planta_${responsable.trim().replace(/[^a-z0-9]+/gi,'_')}_${D.rango.fecha}.pdf`;
+    doc.save(nombreArchivo);
+    showToast('✅ PDF generado');
+  }catch(e){hideLoading();showToast('Error al generar PDF: '+e.message);}
+}
+
 // ===== ALEGRA CONFIG =====
 // IDs de cuentas en Alegra
 
@@ -8075,133 +8309,89 @@ function switchGerencial(tab){
   if(tab==='g-dashboard')cargarDashboard();
 }
 
+let _resumenCavaData=null;
+function _resumenCavaRango(){
+  const feEl=document.getElementById('cr-filtro-fecha');
+  const hdEl=document.getElementById('cr-filtro-hora-desde');
+  const haEl=document.getElementById('cr-filtro-hora-hasta');
+  const fecha=(feEl&&feEl.value)?feEl.value:fechaCorta();
+  if(feEl&&!feEl.value)feEl.value=fecha;
+  const horaDesde=(hdEl&&hdEl.value)?hdEl.value:'00:00';
+  const horaHasta=(haEl&&haEl.value)?haEl.value:'23:59';
+  return {fecha,horaDesde:(hdEl&&hdEl.value)||'',horaHasta:(haEl&&haEl.value)||'',desde:`${fecha}T${horaDesde}:00`,hasta:`${fecha}T${horaHasta}:59`};
+}
+
 async function cargarResumenCava(){
   try{
-    const fecha=fechaCorta();
-    const [data, prod, turnosHoy, cobrosCartera]=await Promise.all([
-      sbGet('despachos_cava',`fecha=eq.${fecha}&order=created_at.asc`),
-      sbGet('produccion',`fecha=eq.${fecha}`).catch(()=>[]),
-      sbGet('turnos',`fecha=eq.${fecha}&select=inv_b20,inv_b10,inv_b3`).catch(()=>[]),
-      // Cobros de cartera cava = despachos CON abono_cava registrado (cualquier fecha, cobrado hoy)
+    const rango=_resumenCavaRango();
+    const {fecha,desde,hasta}=rango;
+    const [data, cobrosCartera, gastosData]=await Promise.all([
+      sbGet('despachos_cava',`created_at=gte.${desde}&created_at=lte.${hasta}&order=created_at.asc`),
+      // Cobros de cartera cava = despachos CON abono_cava registrado (cualquier fecha)
       // Solo los que tienen abono y son de planta (no ruta)
-      sbGet('despachos_cava',`abono_cava=gt.0&tipo=neq.ruta&select=destino,abono_cava,total,tipo,hora,fecha,forma_pago`).catch(()=>[])
+      sbGet('despachos_cava',`abono_cava=gt.0&tipo=neq.ruta&select=destino,abono_cava,total,tipo,hora,fecha,forma_pago`).catch(()=>[]),
+      sbGet('gastos_cava',`created_at=gte.${desde}&created_at=lte.${hasta}&order=created_at.desc`).catch(()=>[])
     ]);
     const ventas=data.filter(d=>d.tipo!=='ruta');
-    const traslados=data.filter(d=>d.tipo==='ruta');
 
     const totalVendido=ventas.reduce((s,d)=>s+Number(d.total||0),0);
     const efectivo=ventas.filter(d=>d.forma_pago==='efectivo').reduce((s,d)=>s+Number(d.total||0),0);
     const transf=ventas.filter(d=>d.forma_pago==='transferencia').reduce((s,d)=>s+Number(d.total||0),0);
     const fiados=ventas.filter(d=>d.forma_pago==='fiado').reduce((s,d)=>s+Number(d.total||0),0);
+    const totalGastos=gastosData.reduce((s,g)=>s+Number(g.valor||0),0);
 
     document.getElementById('cr-num-despachos').textContent=ventas.length;
     document.getElementById('cr-total-vendido').textContent=fmt(totalVendido);
     document.getElementById('cr-efectivo').textContent=fmt(efectivo);
     document.getElementById('cr-transf').textContent=fmt(transf);
     document.getElementById('cr-fiados').textContent=fmt(fiados);
-    document.getElementById('cr-traslados').textContent=traslados.length;
+    const gsEl=document.getElementById('cr-gastos-stat');if(gsEl)gsEl.textContent=fmt(totalGastos);
 
-    // Inventario en cava = inv turnos + produccion − despachos cava
-    const stock={b20:0,b10:0,b3:0,escarchado:0};
-    turnosHoy.forEach(t=>{stock.b20+=t.inv_b20||0;stock.b10+=t.inv_b10||0;stock.b3+=t.inv_b3||0;});
-    prod.forEach(p=>stock[p.presentacion]=(stock[p.presentacion]||0)+p.cantidad);
-
-    // Producción del día — poblar card en resumen
-    const rProdDiv=document.getElementById('cr-resumen-produccion-hoy');
-    const rProdLista=document.getElementById('cr-lista-produccion');
-    if(rProdDiv){
-      rProdDiv.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:4px;">
-        ${[['20 KG','b20'],['10 KG','b10'],['3 KG','b3'],['Esc.','escarchado']].map(([lab,k])=>`
-        <div style="background:var(--bg);border-radius:10px;padding:8px 4px;text-align:center;">
-          <div style="font-size:9px;color:var(--text-light);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">${lab}</div>
-          <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:600;color:var(--success);">${stock[k]||0}</div>
-        </div>`).join('')}
-      </div>`;
-    }
-    if(rProdLista){
-      if(!prod.length){rProdLista.innerHTML='<div class="empty" style="padding:10px 0;"><div class="empty-icon">🏭</div>Sin tandas hoy.</div>';}
-      else{
-        const presLabel={b20:'20 KG',b10:'10 KG',b3:'3 KG',escarchado:'Escarchado'};
-        rProdLista.innerHTML=prod.slice(0,8).map((p,i)=>`
-          <div class="highlight-row">
-            <span class="hl-label">Tanda ${prod.length-i} · ${presLabel[p.presentacion]||p.presentacion}<br>
-              <span style="font-size:11px;color:var(--text-light);">👤 ${p.operario} · 🕐 ${p.hora||'—'}</span>
-            </span>
-            <span class="hl-val" style="color:var(--success);">+${p.cantidad}</span>
-          </div>`).join('')+
-          (prod.length>8?`<div style="font-size:12px;color:var(--text-light);text-align:center;padding:8px 0;">+${prod.length-8} tandas más</div>`:''
-          );
-      }
-    }    const despTot={b20:0,b10:0,b3:0};
-    data.forEach(d=>{despTot.b20+=d.b20||0;despTot.b10+=d.b10||0;despTot.b3+=d.b3||0;});
-    // también rutas
-    // rutas.salida NO se suma — ya está en despachos_cava tipo='ruta'
-    const final={
-      b20:Math.max(0,stock.b20-despTot.b20),
-      b10:Math.max(0,stock.b10-despTot.b10),
-      b3:Math.max(0,stock.b3-despTot.b3),
-      esc:Math.max(0,stock.escarchado)
-    };
-    const getColor=(v,min)=>v<=0?'var(--danger)':v<=min?'var(--warning)':'var(--success)';
-    const setInv=(sfx,v,min,prod,sal)=>{
-      const el=document.getElementById(`cr-inv-${sfx}`);
-      if(el){el.textContent=v;el.style.color=getColor(v,min);}
-      const pe=document.getElementById(`cr-prod-${sfx}`);if(pe)pe.textContent=prod;
-      const de=document.getElementById(`cr-desp-${sfx}`);if(de)de.textContent=sal;
-    };
-    setInv('20',final.b20,20,stock.b20,despTot.b20);
-    setInv('10',final.b10,10,stock.b10,despTot.b10);
-    setInv('3',final.b3,15,stock.b3,despTot.b3);
-    setInv('esc',final.esc,5,stock.escarchado,0);
-
-    // Alertas de inventario
-    const alertas=[];
-    if(final.b20<=0)alertas.push('🚨 Sin stock 20 KG');
-    else if(final.b20<=20)alertas.push(`⚠️ 20 KG bajas: ${final.b20} uds`);
-    if(final.b10<=0)alertas.push('🚨 Sin stock 10 KG');
-    else if(final.b10<=10)alertas.push(`⚠️ 10 KG bajas: ${final.b10} uds`);
-    if(final.b3<=0)alertas.push('🚨 Sin stock 3 KG');
-    else if(final.b3<=15)alertas.push(`⚠️ 3 KG bajas: ${final.b3} uds`);
-    const alertDiv=document.getElementById('cr-inv-alertas');
-    if(alertDiv)alertDiv.innerHTML=alertas.map(a=>`<div class="inv-alert" style="margin-bottom:6px;">${a}</div>`).join('');
-
-    // Cuadre de bolsas por tipo
+    // Presentaciones despachadas por tipo
     const tipos=['ruta','puerta','revendedor','vendedor'];
     const ids={ruta:'cr-bol-rutas',puerta:'cr-bol-puerta',revendedor:'cr-bol-revendedor',vendedor:'cr-bol-vendedor'};
     let totB20=0,totB10=0,totB3=0;
+    const porTipo=[];
     tipos.forEach(t=>{
       const grupo=data.filter(d=>d.tipo===t);
       const b20=grupo.reduce((s,d)=>s+d.b20,0),b10=grupo.reduce((s,d)=>s+d.b10,0),b3=grupo.reduce((s,d)=>s+d.b3,0);
       const el=document.getElementById(ids[t]);
       if(el)el.textContent=[b20>0?`${b20}×20`:'',b10>0?`${b10}×10`:'',b3>0?`${b3}×3`:''].filter(Boolean).join(' · ')||'—';
       totB20+=b20;totB10+=b10;totB3+=b3;
+      porTipo.push({tipo:t,b20,b10,b3});
     });
     const tbEl=document.getElementById('cr-total-bolsas');
     if(tbEl)tbEl.textContent=[totB20>0?`${totB20}×20`:'',totB10>0?`${totB10}×10`:'',totB3>0?`${totB3}×3`:''].filter(Boolean).join(' · ')||'—';
 
+    // Medios de pago
+    const mpE=document.getElementById('cr-mp-efectivo');if(mpE)mpE.textContent=fmt(efectivo);
+    const mpT=document.getElementById('cr-mp-transf');if(mpT)mpT.textContent=fmt(transf);
+    const mpF=document.getElementById('cr-mp-fiado');if(mpF)mpF.textContent=fmt(fiados);
+
     // Cobros de cartera de planta:
-    // 1. Fiados de HOY con abono ya registrado
-    const fiadosHoyConAbono=data.filter(d=>d.forma_pago==='fiado'&&Number(d.abono_cava||0)>0&&d.tipo!=='ruta');
-    // 2. Fiados de DÍAS ANTERIORES cobrados hoy (fecha distinta a hoy, tienen abono)
+    // 1. Fiados del período con abono ya registrado
+    const fiadosPeriodoConAbono=data.filter(d=>d.forma_pago==='fiado'&&Number(d.abono_cava||0)>0&&d.tipo!=='ruta');
+    // 2. Fiados de otros días (fecha distinta a la filtrada)
     const cobrosAnteriores=cobrosCartera.filter(d=>d.fecha!==fecha);
-    // Alias para el bloque de detalle
-    const despachosFiadosConAbono=fiadosHoyConAbono;
     const totalCobrosCartera=
-      fiadosHoyConAbono.reduce((s,d)=>s+Number(d.abono_cava||0),0)+
+      fiadosPeriodoConAbono.reduce((s,d)=>s+Number(d.abono_cava||0),0)+
       cobrosAnteriores.reduce((s,d)=>s+Number(d.abono_cava||0),0);
-    // Financiero
+
+    // Liquidación final
     const ef2=document.getElementById('cr-ef2');if(ef2)ef2.textContent=fmt(efectivo);
     const tr2=document.getElementById('cr-transf2');if(tr2)tr2.textContent=fmt(transf);
-    const fi2=document.getElementById('cr-fiados2');if(fi2)fi2.textContent=fmt(fiados);
     const ccEl=document.getElementById('cr-cobros-cartera');if(ccEl)ccEl.textContent=fmt(totalCobrosCartera);
-    const ae=document.getElementById('cr-a-entregar');if(ae)ae.textContent=fmt(efectivo+transf+totalCobrosCartera);
+    const gtEl=document.getElementById('cr-gastos-total');if(gtEl)gtEl.textContent=fmt(totalGastos);
+    const consignar=Math.max(0,efectivo+totalCobrosCartera-totalGastos);
+    const ae=document.getElementById('cr-a-entregar');if(ae)ae.textContent=fmt(consignar);
+    const yc=document.getElementById('cr-ya-consignado');if(yc)yc.textContent=fmt(transf);
 
-    // Detalle por cliente
+    // Reporte de despachos
     const tipoLabel={ruta:'🚛',puerta:'🚪',revendedor:'🚲',vendedor:'🧑‍💼'};
     const pagoColor={efectivo:'var(--success)',transferencia:'var(--transfer)',fiado:'var(--warning)'};
     const detDiv=document.getElementById('cr-detalle-clientes');
     if(detDiv){
-      if(!data.length){detDiv.innerHTML='<div style="font-size:13px;color:var(--text-light);">Sin despachos.</div>';}
+      if(!data.length){detDiv.innerHTML='<div style="font-size:13px;color:var(--text-light);">Sin despachos en este período.</div>';}
       else{detDiv.innerHTML=data.map(d=>{
         const det=[d.b20>0?`${d.b20}×20`:'',d.b10>0?`${d.b10}×10`:'',d.b3>0?`${d.b3}×3`:''].filter(Boolean).join(' · ');
         return`<div class="highlight-row">
@@ -8215,16 +8405,14 @@ async function cargarResumenCava(){
       }).join('');}
     }
 
-    // Cobros de cartera recibidos — detalle
-    const ccBloq=document.getElementById('cr-cobros-bloque');
+    // Cobros de cartera — detalle
     const ccLista=document.getElementById('cr-cobros-lista');
-    if(ccBloq&&ccLista){
+    if(ccLista){
       const todosLosAbonos=[
-        ...fiadosHoyConAbono.map(d=>({...d,_label:'Hoy'})),
+        ...fiadosPeriodoConAbono.map(d=>({...d,_label:'Este período'})),
         ...cobrosAnteriores.map(d=>({...d,_label:d.fecha}))
       ];
       if(todosLosAbonos.length&&totalCobrosCartera>0){
-        ccBloq.style.display='block';
         ccLista.innerHTML=todosLosAbonos.map(d=>`
           <div class="highlight-row">
             <span class="hl-label"><strong>${d.destino||'Cliente'}</strong>
@@ -8235,7 +8423,24 @@ async function cargarResumenCava(){
             <span class="hl-val" style="color:var(--success);">+${fmt(Number(d.abono_cava||0))}</span>
           </div>`).join('');
       } else {
-        ccBloq.style.display='none';
+        ccLista.innerHTML='<div style="font-size:13px;color:var(--text-light);">Sin cobros en este período.</div>';
+      }
+    }
+
+    // Gastos — detalle
+    const gLista=document.getElementById('cr-gastos-lista');
+    if(gLista){
+      if(!gastosData.length){gLista.innerHTML='<div style="font-size:13px;color:var(--text-light);">Sin gastos en este período.</div>';}
+      else{
+        const catLabel={mantenimiento:'🔧',insumos:'📦',servicios:'💡',personal:'👷',otro:'📋'};
+        gLista.innerHTML=gastosData.map(g=>`
+          <div class="highlight-row">
+            <span class="hl-label">${catLabel[g.categoria]||'📋'} ${g.descripcion}
+              ${g.nota?`<br><span style="font-size:11px;color:var(--text-light);">📝 ${g.nota}</span>`:''}
+              <br><span style="font-size:11px;color:var(--text-light);">🕐 ${g.hora||'—'}</span>
+            </span>
+            <span class="hl-val" style="color:var(--danger);">${fmt(g.valor)}</span>
+          </div>`).join('');
       }
     }
 
@@ -8255,6 +8460,18 @@ async function cargarResumenCava(){
         }).join('');
       } else { fBloq.style.display='none'; }
     }
+
+    // Cache para exportar a PDF
+    _resumenCavaData={
+      rango,
+      stats:{numDespachos:ventas.length,totalVendido,efectivo,transf,fiados,totalGastos},
+      bolsas:{totB20,totB10,totB3,porTipo},
+      cobrosCartera:[...fiadosPeriodoConAbono,...cobrosAnteriores].map(d=>({destino:d.destino,fecha:d.fecha,total:Number(d.total||0),abono:Number(d.abono_cava||0)})),
+      totalCobrosCartera,
+      gastos:gastosData.map(g=>({categoria:g.categoria||'',descripcion:g.descripcion||'',nota:g.nota||'',hora:g.hora||'',valor:Number(g.valor||0)})),
+      despachos:data.map(d=>({destino:d.destino,tipo:d.tipo,b20:d.b20,b10:d.b10,b3:d.b3,hora:d.hora||'',formaPago:d.forma_pago||'',total:Number(d.total||0)})),
+      consignar
+    };
   }catch(e){console.error('Resumen cava:',e);}
 }
 
