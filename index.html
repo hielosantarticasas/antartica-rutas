@@ -8318,7 +8318,7 @@ function _resumenCavaRango(){
   if(feEl&&!feEl.value)feEl.value=fecha;
   const horaDesde=(hdEl&&hdEl.value)?hdEl.value:'00:00';
   const horaHasta=(haEl&&haEl.value)?haEl.value:'23:59';
-  return {fecha,horaDesde:(hdEl&&hdEl.value)||'',horaHasta:(haEl&&haEl.value)||'',desde:`${fecha}T${horaDesde}:00`,hasta:`${fecha}T${horaHasta}:59`};
+  return {fecha,horaDesde:(hdEl&&hdEl.value)||'',horaHasta:(haEl&&haEl.value)||'',desde:`${fecha}T${horaDesde}:00-05:00`,hasta:`${fecha}T${horaHasta}:59-05:00`};
 }
 
 async function cargarResumenCava(){
