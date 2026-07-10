@@ -6428,13 +6428,13 @@ async function exportarResumenCavaPDF(){
       y+=8;
     }
 
-    // ══ REPORTE DE DESPACHOS (detalle: cliente, forma de pago, cantidad, presentación, precio/u y total) ══
+    // ══ REPORTE DE DESPACHOS (detalle: cliente, cantidad, presentación, precio/u, total y forma de pago) ══
     if(D.despachos.length){
       sectionHeader('REPORTE DE DESPACHOS');
-      const dw=[16,innerW-16-20-13-22-26-40,20,13,22,26,40];
+      const dw=[innerW-15-25-28-35-32,15,25,28,35,32];
       tableHeaderRow([
-        {label:'Hora'},{label:'Cliente'},{label:'Pago'},{label:'Cant.',align:'right'},
-        {label:'Present.'},{label:'Precio/u',align:'right'},{label:'Total',align:'right'}
+        {label:'Cliente'},{label:'Cant.',align:'right'},{label:'Present.'},
+        {label:'Precio/u',align:'right'},{label:'Total',align:'right'},{label:'Pago',align:'right'}
       ],dw,margin);
       const pagoLabelPdf={efectivo:'Contado',transferencia:'Transf.',fiado:'Fiado'};
       const pagoColorPdf={efectivo:COL_SUCCESS,transferencia:[107,79,187],fiado:COL_WARN};
@@ -6450,14 +6450,13 @@ async function exportarResumenCavaPDF(){
         presentaciones.forEach((p,pi)=>{
           const subtotal=p.cant*p.precio;
           tableRow([
-            pi===0?(d.hora||'—'):'',
             pi===0?d.destino:'',
-            pi===0?pagoTxt:'',
             String(p.cant),
             p.label,
             p.precio?fmtN(p.precio):'—',
-            esRuta?'—':fmtN(subtotal)
-          ],dw,margin,{shade:idx%2===1,color:rowColor,aligns:['left','left','left','right','left','right','right']});
+            esRuta?'—':fmtN(subtotal),
+            pi===0?pagoTxt:''
+          ],dw,margin,{shade:idx%2===1,color:rowColor,aligns:['left','right','left','right','right','right']});
         });
       });
       y+=8;
