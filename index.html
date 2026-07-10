@@ -6428,14 +6428,37 @@ async function exportarResumenCavaPDF(){
       y+=8;
     }
 
-    // ══ REPORTE DE DESPACHOS (detalle) ══
+    // ══ REPORTE DE DESPACHOS (detalle: cliente, forma de pago, cantidad, presentación, precio/u y total) ══
     if(D.despachos.length){
       sectionHeader('REPORTE DE DESPACHOS');
-      const dw=[25,innerW-25-55-40,55,40];
-      tableHeaderRow([{label:'Hora'},{label:'Destino'},{label:'Detalle'},{label:'Total',align:'right'}],dw,margin);
-      D.despachos.forEach((d,i)=>{
-        const det=[d.b20>0?`${d.b20}×20`:'',d.b10>0?`${d.b10}×10`:'',d.b3>0?`${d.b3}×3`:''].filter(Boolean).join(' ');
-        tableRow([d.hora||'—',d.destino+(d.tipo?' ('+d.tipo+')':''),det||'—',d.tipo==='ruta'?'Traslado':fmtN(d.total)],dw,margin,{shade:i%2===1,aligns:['left','left','left','right']});
+      const dw=[16,innerW-16-20-13-22-26-40,20,13,22,26,40];
+      tableHeaderRow([
+        {label:'Hora'},{label:'Cliente'},{label:'Pago'},{label:'Cant.',align:'right'},
+        {label:'Present.'},{label:'Precio/u',align:'right'},{label:'Total',align:'right'}
+      ],dw,margin);
+      const pagoLabelPdf={efectivo:'Contado',transferencia:'Transf.',fiado:'Fiado'};
+      const pagoColorPdf={efectivo:COL_SUCCESS,transferencia:[107,79,187],fiado:COL_WARN};
+      D.despachos.forEach((d,idx)=>{
+        const presentaciones=[];
+        if(d.b20>0)presentaciones.push({cant:d.b20,label:'20 kg',precio:d.p20});
+        if(d.b10>0)presentaciones.push({cant:d.b10,label:'10 kg',precio:d.p10});
+        if(d.b3>0)presentaciones.push({cant:d.b3,label:'3 kg',precio:d.p3});
+        if(!presentaciones.length)presentaciones.push({cant:0,label:'—',precio:0});
+        const esRuta=d.tipo==='ruta';
+        const pagoTxt=esRuta?'Traslado':(pagoLabelPdf[d.formaPago]||d.formaPago||'—');
+        const rowColor=esRuta?COL_LIGHT:(pagoColorPdf[d.formaPago]||COL_TEXT);
+        presentaciones.forEach((p,pi)=>{
+          const subtotal=p.cant*p.precio;
+          tableRow([
+            pi===0?(d.hora||'—'):'',
+            pi===0?d.destino:'',
+            pi===0?pagoTxt:'',
+            String(p.cant),
+            p.label,
+            p.precio?fmtN(p.precio):'—',
+            esRuta?'—':fmtN(subtotal)
+          ],dw,margin,{shade:idx%2===1,color:rowColor,aligns:['left','left','left','right','left','right','right']});
+        });
       });
       y+=8;
     }
@@ -8471,7 +8494,7 @@ async function cargarResumenCava(){
       cobrosCartera:cobrosPeriodo.map(d=>({destino:d.destino,fecha:d.fecha,total:Number(d.total||0),abono:Number(d.abono_cava||0)})),
       totalCobrosCartera,
       gastos:gastosData.map(g=>({categoria:g.categoria||'',descripcion:g.descripcion||'',nota:g.nota||'',hora:g.hora||'',valor:Number(g.valor||0)})),
-      despachos:data.map(d=>({destino:d.destino,tipo:d.tipo,b20:d.b20,b10:d.b10,b3:d.b3,hora:d.hora||'',formaPago:d.forma_pago||'',total:Number(d.total||0)})),
+      despachos:data.map(d=>({destino:d.destino,tipo:d.tipo,b20:d.b20,b10:d.b10,b3:d.b3,p20:Number(d.p20||0),p10:Number(d.p10||0),p3:Number(d.p3||0),hora:d.hora||'',formaPago:d.forma_pago||'',total:Number(d.total||0)})),
       consignar
     };
   }catch(e){console.error('Resumen cava:',e);}
