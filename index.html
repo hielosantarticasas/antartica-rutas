@@ -730,32 +730,8 @@
     </div>
     <div class="card">
       <div class="card-title">RECARGUES DE MERCANCÍA</div>
-      <p style="font-size:13px;color:var(--text-light);margin-bottom:12px;">El camión volvió a cargar. Añade las bolsas subidas.</p>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:12px;">Los recargues los envía Planta desde Despachos. Aparecerán aquí automáticamente para que los aceptes — no se pueden crear desde la ruta.</p>
       <div id="recargues-lista"></div>
-      <div id="form-recargue" style="display:none;">
-        <div class="bolsas-grid">
-          <div class="bolsa-item"><div class="bolsa-label">20 KG</div><div class="bolsa-counter">
-            <button class="counter-btn" onclick="cambiarBI('rec-b20',-1)">−</button>
-            <input type="number" class="counter-input" id="rec-b20" value="0" min="0" inputmode="numeric">
-            <button class="counter-btn" onclick="cambiarBI('rec-b20',1)">+</button>
-          </div></div>
-          <div class="bolsa-item"><div class="bolsa-label">10 KG</div><div class="bolsa-counter">
-            <button class="counter-btn" onclick="cambiarBI('rec-b10',-1)">−</button>
-            <input type="number" class="counter-input" id="rec-b10" value="0" min="0" inputmode="numeric">
-            <button class="counter-btn" onclick="cambiarBI('rec-b10',1)">+</button>
-          </div></div>
-          <div class="bolsa-item"><div class="bolsa-label">3 KG</div><div class="bolsa-counter">
-            <button class="counter-btn" onclick="cambiarBI('rec-b3',-1)">−</button>
-            <input type="number" class="counter-input" id="rec-b3" value="0" min="0" inputmode="numeric">
-            <button class="counter-btn" onclick="cambiarBI('rec-b3',1)">+</button>
-          </div></div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-primary btn-sm" style="flex:1;" onclick="confirmarRecargue()">✅ CONFIRMAR</button>
-          <button class="btn btn-outline btn-sm" style="flex:1;" onclick="document.getElementById('form-recargue').style.display='none'">CANCELAR</button>
-        </div>
-      </div>
-      <button class="btn btn-outline" style="margin-top:8px;" onclick="mostrarFormRecargue()">🔄 + AÑADIR RECARGUE</button>
     </div>
 
     <!-- DEVOLUCIÓN -->
@@ -5433,25 +5409,9 @@ async function eliminarRecargue(id){
 
 
 
-function mostrarFormRecargue(){
-  resetI('rec-b20','rec-b10','rec-b3');
-  document.getElementById('form-recargue').style.display='block';
-}
-
-async function confirmarRecargue(){
-  const b20=getI('rec-b20'),b10=getI('rec-b10'),b3=getI('rec-b3');
-  if(b20+b10+b3===0){alert('Ingresa al menos una bolsa');return;}
-  showLoading('Guardando recargue...');
-  try{
-    const hora=new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
-    await sbPost('recargues',{ruta_id:rutaActivaId,b20,b10,b3,hora});
-    document.getElementById('form-recargue').style.display='none';
-    resetI('rec-b20','rec-b10','rec-b3');
-    hideLoading();
-    showToast('✅ Recargue guardado');
-    cargarRecargues();
-  }catch(e){hideLoading();alert('Error: '+e.message);}
-}
+// Nota: los recargues ya NO se pueden crear desde la ruta. Solo llegan desde
+// Planta → Despachos (tipo "ruta"), y el conductor únicamente puede aceptarlos
+// (ver aceptarRecargue()) o editar/eliminar los que ya existen.
 
 // ===== DEVOLUCIONES =====
 async function cargarDevoluciones(){
@@ -5981,6 +5941,13 @@ async function cargarResumen(){
       if(e.b10>0){const k=`10-${e.p10||0}`;if(!precioMap[k])precioMap[k]={pres:'10 KG',precio:e.p10||0,qty:0,total:0};precioMap[k].qty+=e.b10;precioMap[k].total+=e.b10*(e.p10||0);}
       if(e.b3>0){const k=`3-${e.p3||0}`;if(!precioMap[k])precioMap[k]={pres:'3 KG',precio:e.p3||0,qty:0,total:0};precioMap[k].qty+=e.b3;precioMap[k].total+=e.b3*(e.p3||0);}
     });
+    // Ventas por precio — solo de contado (excluye fiado), para el PDF
+    const precioMapContado={};
+    ventas.filter(e=>e.forma_pago!=='fiado').forEach(e=>{
+      if(e.b20>0){const k=`20-${e.p20||0}`;if(!precioMapContado[k])precioMapContado[k]={pres:'20 KG',precio:e.p20||0,qty:0,total:0};precioMapContado[k].qty+=e.b20;precioMapContado[k].total+=e.b20*(e.p20||0);}
+      if(e.b10>0){const k=`10-${e.p10||0}`;if(!precioMapContado[k])precioMapContado[k]={pres:'10 KG',precio:e.p10||0,qty:0,total:0};precioMapContado[k].qty+=e.b10;precioMapContado[k].total+=e.b10*(e.p10||0);}
+      if(e.b3>0){const k=`3-${e.p3||0}`;if(!precioMapContado[k])precioMapContado[k]={pres:'3 KG',precio:e.p3||0,qty:0,total:0};precioMapContado[k].qty+=e.b3;precioMapContado[k].total+=e.b3*(e.p3||0);}
+    });
     const pDiv=document.getElementById('res-precios-agrupados');
     if(!Object.keys(precioMap).length){pDiv.innerHTML='<div style="font-size:13px;color:var(--text-light);">Sin ventas.</div>';}
     else{pDiv.innerHTML=Object.values(precioMap).sort((a,b)=>b.total-a.total).map(g=>`
@@ -6035,6 +6002,8 @@ async function cargarResumen(){
         cambios:{b20:cam20,b10:cam10,b3:cam3}
       },
       precioMap,
+      precioMapContado,
+      ventasDetalle:ventas.map(e=>({cliente:e.cliente,tipo:e.tipo_cliente||'',b20:e.b20,b10:e.b10,b3:e.b3,p20:Number(e.p20||0),p10:Number(e.p10||0),p3:Number(e.p3||0),formaPago:e.forma_pago||''})),
       fiados:fiados.map(e=>({cliente:e.cliente,tipo:e.tipo_cliente||'',b20:e.b20,b10:e.b10,b3:e.b3,debe:Number(e.debe||0),nota:e.nota||''})),
       cobros:cobros.map(c=>({cliente:c.cliente,esGlobal:!!c.es_global,nota:c.nota||'',valor:Number(c.valor||0)})),
       consignar:Math.max(0,totalEfectivo+totalCartera-totalGastos)
@@ -6185,10 +6154,43 @@ async function exportarResumenRutaPDF(){
     tableRow(['SOBRANTES EN CAMIÓN',b.sobrantes.b20,b.sobrantes.b10,b.sobrantes.b3],colW,margin,{bold:true,color:COL_DANGER,aligns:['left','right','right','right']});
     y+=8;
 
-    // ══ VENTAS POR PRECIO ══
-    const precios=Object.values(D.precioMap||{}).sort((a,b)=>b.total-a.total);
+    // ══ REPORTE DE VENTAS (detalle por cliente: cantidad, presentación, precio/u, total y forma de pago) ══
+    if(D.ventasDetalle&&D.ventasDetalle.length){
+      sectionHeader('REPORTE DE VENTAS');
+      const rdw=[innerW-15-25-28-35-32,15,25,28,35,32];
+      tableHeaderRow([
+        {label:'Cliente'},{label:'Cant.',align:'right'},{label:'Present.'},
+        {label:'Precio/u',align:'right'},{label:'Total',align:'right'},{label:'Pago',align:'right'}
+      ],rdw,margin);
+      const pagoLabelPdf2={efectivo:'Contado',transferencia:'Transf.',fiado:'Fiado'};
+      const pagoColorPdf2={efectivo:COL_SUCCESS,transferencia:[107,79,187],fiado:COL_WARN};
+      D.ventasDetalle.forEach((e,idx)=>{
+        const presentaciones=[];
+        if(e.b20>0)presentaciones.push({cant:e.b20,label:'20 kg',precio:e.p20});
+        if(e.b10>0)presentaciones.push({cant:e.b10,label:'10 kg',precio:e.p10});
+        if(e.b3>0)presentaciones.push({cant:e.b3,label:'3 kg',precio:e.p3});
+        if(!presentaciones.length)presentaciones.push({cant:0,label:'—',precio:0});
+        const pagoTxt=pagoLabelPdf2[e.formaPago]||e.formaPago||'—';
+        const rowColor=pagoColorPdf2[e.formaPago]||COL_TEXT;
+        presentaciones.forEach((p,pi)=>{
+          const subtotal=p.cant*p.precio;
+          tableRow([
+            pi===0?(e.cliente+(e.tipo?' ('+e.tipo+')':'')):'',
+            String(p.cant),
+            p.label,
+            p.precio?fmtN(p.precio):'—',
+            fmtN(subtotal),
+            pi===0?pagoTxt:''
+          ],rdw,margin,{shade:idx%2===1,color:rowColor,aligns:['left','right','left','right','right','right']});
+        });
+      });
+      y+=8;
+    }
+
+    // ══ VENTAS POR PRECIO — SOLO DE CONTADO ══
+    const precios=Object.values(D.precioMapContado||{}).sort((a,b)=>b.total-a.total);
     if(precios.length){
-      sectionHeader('VENTAS POR PRECIO');
+      sectionHeader('VENTAS POR PRECIO (SOLO DE CONTADO)');
       const pw=[45,45,45,innerW-135];
       tableHeaderRow([{label:'Presentación'},{label:'Precio Unit.',align:'right'},{label:'Cantidad',align:'right'},{label:'Total',align:'right'}],pw,margin);
       precios.forEach((g,i)=>{
