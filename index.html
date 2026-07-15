@@ -527,24 +527,9 @@
 <div class="screen" id="screen-gastos-gerenciales">
   <div class="section-title">GASTOS GERENCIALES</div>
   <div class="section-sub">Administrativos, nómina y generales</div>
-  <div class="card">
-    <div class="card-title">REGISTRAR GASTO</div>
-    <label>Descripción</label>
-    <input type="text" id="gg-desc" placeholder="Ej: nómina semanal, papelería">
-    <label>Valor ($)</label>
-    <input type="number" id="gg-valor" placeholder="0" inputmode="numeric">
-    <label>Categoría</label>
-    <select id="gg-cat">
-      <option value="nomina">👷 Nómina / pagos personal</option>
-      <option value="admin">📋 Administrativo</option>
-      <option value="marketing">📣 Marketing / publicidad</option>
-      <option value="servicios">💡 Servicios públicos</option>
-      <option value="arriendo">🏠 Arriendo</option>
-      <option value="otro">📌 Otro</option>
-    </select>
-    <label>Nota (opcional)</label>
-    <input type="text" id="gg-nota" placeholder="Detalle">
-    <button class="btn btn-warning" onclick="registrarGastoGerencial()">💸 REGISTRAR</button>
+  <div class="card" style="text-align:center;">
+    <p style="font-size:13px;color:var(--text-light);margin:4px 0 10px;">Para registrar un nuevo gasto gerencial, hazlo desde <b>Admin → Gastos → Gerencial</b>. Aquí solo se muestra el resumen del mes.</p>
+    <button class="btn btn-primary" onclick="showScreen('screen-gastos-nav');switchGastosNav('gn-gerenciales');">💼 IR A REGISTRAR GASTO</button>
   </div>
   <div class="card">
     <div class="card-title">GASTOS DEL MES</div>
@@ -1474,6 +1459,7 @@
         <input type="text" id="gasto-search-cat" placeholder="🔍 Buscar por categoría..." oninput="filtrarGastosPorCat(this.value)" style="margin-bottom:0;flex:1;">
       </div>
       <div id="gn-global-lista"><div class="empty" style="padding:14px 0;">Sin gastos.</div></div>
+      <button class="btn btn-outline" onclick="exportarGastosPDF('global')" style="margin-top:10px;">📄 EXPORTAR PDF DETALLADO</button>
     </div>
   </div>
 
@@ -1483,6 +1469,7 @@
       <div class="card-title">GASTOS DE RUTA — MES</div>
       <div id="gn-ruta-total" style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:var(--danger);margin-bottom:12px;">$0</div>
       <div id="gn-ruta-lista"><div class="empty" style="padding:14px 0;">Sin gastos.</div></div>
+      <button class="btn btn-outline" onclick="exportarGastosPDF('ruta')" style="margin-top:10px;">📄 EXPORTAR PDF DETALLADO</button>
     </div>
   </div>
 
@@ -1492,6 +1479,7 @@
       <div class="card-title">GASTOS DE PLANTA — MES</div>
       <div id="gn-planta-total" style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:var(--danger);margin-bottom:12px;">$0</div>
       <div id="gn-planta-lista"><div class="empty" style="padding:14px 0;">Sin gastos.</div></div>
+      <button class="btn btn-outline" onclick="exportarGastosPDF('planta')" style="margin-top:10px;">📄 EXPORTAR PDF DETALLADO</button>
     </div>
   </div>
 
@@ -1512,6 +1500,8 @@
         <option value="impuestos">📑 Impuestos</option>
         <option value="otro">📌 Otro</option>
       </select>
+      <label>Responsable</label>
+      <input type="text" id="gg-responsable" placeholder="Ej: Rafael Álvarez">
       <label>Valor ($)</label>
       <input type="number" id="gg-valor" placeholder="0" inputmode="numeric">
       <label>Nota (opcional)</label>
@@ -1522,6 +1512,7 @@
       <div class="card-title">📋 GASTOS GERENCIALES — MES</div>
       <div id="gn-ger-total" style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:var(--danger);margin-bottom:12px;">$0</div>
       <div id="gn-ger-lista"><div class="empty" style="padding:14px 0;">Sin gastos gerenciales.</div></div>
+      <button class="btn btn-outline" onclick="exportarGastosPDF('gerencial')" style="margin-top:10px;">📄 EXPORTAR PDF DETALLADO</button>
     </div>
     <div class="card">
       <div class="card-title">🏷️ CREAR CATEGORÍA PERSONALIZADA</div>
@@ -2065,6 +2056,17 @@
       <div class="card-title">💸 REGISTRAR GASTO DE PLANTA</div>
       <label>Descripción</label>
       <input type="text" id="cav-gasto-desc" placeholder="Ej: repuesto compresor, insumos limpieza">
+      <label>Categoría</label>
+      <select id="cav-gasto-cat">
+        <option value="mantenimiento">🔧 Mantenimiento</option>
+        <option value="insumos">📦 Insumos</option>
+        <option value="servicios">💡 Servicios</option>
+        <option value="personal">👷 Personal</option>
+        <option value="transporte">🚌 Transporte</option>
+        <option value="otro" selected>📌 Otro</option>
+      </select>
+      <label>Responsable</label>
+      <input type="text" id="cav-gasto-responsable" placeholder="Ej: Juan Pérez">
       <label>Valor ($)</label>
       <input type="number" id="cav-gasto-valor" placeholder="0" inputmode="numeric">
       <label>Nota (opcional)</label>
@@ -2578,6 +2580,7 @@
         <span class="reporte-val" id="rep-utilidad" style="font-size:24px;">$0</span>
       </div>
     </div>
+    <button class="btn btn-primary" onclick="exportarInformeGerencialPDF()" style="margin-top:4px;">📄 EXPORTAR INFORME GERENCIAL (PDF)</button>
   </div>
   <div id="reportes-comparativo" style="display:none;"></div>
 </div>
@@ -4557,8 +4560,8 @@ async function cargarGastosGlobal(){
 
     const todos=[
       ...gastosRuta.map(g=>({...g,_tipo:'ruta',_origen:g._origen})),
-      ...gastosCava.map(g=>({...g,_tipo:'planta',_origen:'Planta'})),
-      ...gastosGer.map(g=>({...g,_tipo:'gerencial',_origen:'Gerencia'}))
+      ...gastosCava.map(g=>({...g,_tipo:'planta',_origen:g.responsable||'Planta'})),
+      ...gastosGer.map(g=>({...g,_tipo:'gerencial',_origen:g.responsable||'Gerencia'}))
     ];
 
     const total=todos.reduce((s,g)=>s+Number(g.valor),0);
@@ -4648,7 +4651,9 @@ async function cargarGastosRutaNav(){
     }
     const total=all.reduce((s,g)=>s+Number(g.valor),0);
     const totEl=document.getElementById('gn-ruta-total');if(totEl)totEl.textContent=fmt(total);
-    const lista=document.getElementById('gn-ruta-lista');if(!lista)return;
+    const lista=document.getElementById('gn-ruta-lista');
+    _gastosRutaCache=all;
+    if(!lista)return;
     if(!all.length){lista.innerHTML='<div class="empty" style="padding:14px 0;"><div class="empty-icon">🚛</div>Sin gastos de ruta.</div>';return;}
     lista.innerHTML=all.sort((a,b)=>b._fecha.localeCompare(a._fecha)).map(g=>`
       <div class="highlight-row">
@@ -4666,12 +4671,14 @@ async function cargarGastosPlantaNav(){
     const data=await sbGet('gastos_cava',`fecha=gte.${mesInicio}&order=fecha.desc`).catch(()=>[]);
     const total=data.reduce((s,g)=>s+Number(g.valor),0);
     const totEl=document.getElementById('gn-planta-total');if(totEl)totEl.textContent=fmt(total);
-    const lista=document.getElementById('gn-planta-lista');if(!lista)return;
+    const lista=document.getElementById('gn-planta-lista');
+    _gastosPlantaCache=data;
+    if(!lista)return;
     if(!data.length){lista.innerHTML='<div class="empty" style="padding:14px 0;"><div class="empty-icon">🌿</div>Sin gastos de planta.</div>';return;}
     lista.innerHTML=data.map(g=>`
       <div class="highlight-row">
         <span class="hl-label">${g.descripcion}<br>
-          <span style="font-size:11px;color:var(--text-light);">${g.fecha}${g.nota?' · '+g.nota:''}</span>
+          <span style="font-size:11px;color:var(--text-light);">${g.fecha}${g.responsable?' · 👤 '+g.responsable:''}${g.nota?' · '+g.nota:''}</span>
         </span>
         <span class="hl-val" style="color:var(--danger);">${fmt(g.valor)}</span>
       </div>`).join('');
@@ -4909,14 +4916,17 @@ async function registrarGastoGerencial(){
   const valor=parseFloat(document.getElementById('gg-valor').value)||0;
   const cat=document.getElementById('gg-cat').value;
   const nota=document.getElementById('gg-nota').value.trim();
+  const respEl=document.getElementById('gg-responsable');
+  const responsable=(respEl&&respEl.value.trim())||'';
   if(!desc){alert('Ingresa la descripción');return;}
   if(!valor){alert('Ingresa el valor');return;}
   showLoading('Guardando...');
   try{
-    await sbPost('gastos_gerenciales',{fecha:fechaCorta(),descripcion:desc,valor,categoria:cat,nota});
+    await sbPost('gastos_gerenciales',{fecha:fechaCorta(),descripcion:desc,valor,categoria:cat,responsable,nota});
     document.getElementById('gg-desc').value='';
     document.getElementById('gg-valor').value='';
     document.getElementById('gg-nota').value='';
+    if(respEl)respEl.value='';
     hideLoading();showToast('✅ Gasto gerencial registrado');
     cargarGastosGerenciales();
   }catch(e){hideLoading();alert('Error: '+e.message);}
@@ -4939,8 +4949,9 @@ async function cargarGastosGerenciales(){
     const lista2=document.getElementById('gn-ger-lista');
     if(lista2){
       if(!data.length){lista2.innerHTML='<div class="empty" style="padding:14px 0;">Sin gastos gerenciales.</div>';}
-      else lista2.innerHTML=data.map(g=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;"><div><div style="font-weight:700;color:var(--text-bright);">${g.descripcion}</div><div style="font-size:11px;color:var(--text-light);">${g.categoria||'otro'} · ${g.fecha}${g.nota?' · '+g.nota:''}</div></div><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--danger);">${fmt(g.valor)}</span></div>`).join('');
+      else lista2.innerHTML=data.map(g=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;"><div><div style="font-weight:700;color:var(--text-bright);">${g.descripcion}</div><div style="font-size:11px;color:var(--text-light);">${g.categoria||'otro'} · ${g.fecha}${g.responsable?' · 👤 '+g.responsable:''}${g.nota?' · '+g.nota:''}</div></div><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--danger);">${fmt(g.valor)}</span></div>`).join('');
     }
+    _gastosGerCache=data;
   }catch(e){}
 }
 
@@ -4982,6 +4993,230 @@ function eliminarCatCustom(key){
 
 // Búsqueda de gastos por categoría
 let _gastosGlobalCache=[];
+let _gastosRutaCache=[];
+let _gastosPlantaCache=[];
+let _gastosGerCache=[];
+
+// ═══════════════════════════════════════════════════════════════
+// ===== HELPERS COMPARTIDOS PARA GENERAR PDFs (jsPDF) =====
+// ═══════════════════════════════════════════════════════════════
+async function _asegurarJsPDF(){
+  if(!window.jspdf){
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      s.onload=res;s.onerror=rej;document.head.appendChild(s);
+    });
+  }
+  const {jsPDF}=window.jspdf||{};
+  if(!jsPDF)throw new Error('jsPDF no disponible');
+  return jsPDF;
+}
+function _crearPDFDoc(jsPDF){
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const W=210,H=297,margin=15,innerW=W-margin*2;
+  const COL_DARK=[10,42,74],COL_CYAN=[0,153,204],COL_SUCCESS=[0,150,110],
+        COL_DANGER=[204,34,51],COL_WARN=[184,120,0],COL_TEXT=[30,35,45],
+        COL_LIGHT=[110,120,135],COL_BORDER=[220,224,230],COL_BG=[244,247,250];
+  const state={y:0,pageNum:1};
+  function fmtN(n){return '$'+Math.round(Number(n||0)).toLocaleString('es-CO');}
+  function footer(){
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...COL_LIGHT);
+    doc.text(`Hielos Antártica — Documento generado el ${new Date().toLocaleString('es-CO')}`,margin,H-8);
+    doc.text(`Pág. ${state.pageNum}`,W-margin,H-8,{align:'right'});
+  }
+  function checkBreak(need){
+    if(state.y+need>H-16){footer();doc.addPage();state.pageNum++;state.y=18;}
+  }
+  function sectionHeader(title){
+    checkBreak(14);
+    doc.setFillColor(...COL_DARK);
+    doc.roundedRect(margin,state.y,innerW,8,1.5,1.5,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.setTextColor(255,255,255);
+    doc.text(title,margin+4,state.y+5.7);
+    state.y+=13;
+  }
+  function tableHeaderRow(cols,widths,x0){
+    checkBreak(9);
+    doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(255,255,255);
+    doc.setFillColor(...COL_CYAN);
+    doc.rect(x0,state.y,widths.reduce((a,b)=>a+b,0),6.5,'F');
+    let cx=x0;
+    cols.forEach((c,i)=>{
+      doc.text(c.label,cx+(c.align==='right'?widths[i]-2:2),state.y+4.4,{align:c.align==='right'?'right':'left'});
+      cx+=widths[i];
+    });
+    state.y+=6.5;
+  }
+  function tableRow(vals,widths,x0,opts={}){
+    const rowH=opts.h||6;
+    checkBreak(rowH+2);
+    if(opts.shade){doc.setFillColor(...COL_BG);doc.rect(x0,state.y,widths.reduce((a,b)=>a+b,0),rowH,'F');}
+    doc.setFont('helvetica',opts.bold?'bold':'normal');doc.setFontSize(8.5);
+    doc.setTextColor(...(opts.color||COL_TEXT));
+    let cx=x0;
+    vals.forEach((v,i)=>{
+      const align=opts.aligns?opts.aligns[i]:'left';
+      doc.text(String(v),cx+(align==='right'?widths[i]-2:2),state.y+rowH-2,{align:align==='right'?'right':'left',maxWidth:widths[i]-4});
+      cx+=widths[i];
+    });
+    state.y+=rowH;
+    doc.setDrawColor(...COL_BORDER);doc.setLineWidth(0.15);
+    doc.line(x0,state.y,x0+widths.reduce((a,b)=>a+b,0),state.y);
+  }
+  function kpiBox(kpis){
+    const rows=Math.ceil(kpis.length/3);
+    const kpiW=innerW/3,kpiH=17;
+    checkBreak(rows*kpiH);
+    kpis.forEach((k,i)=>{
+      const col=i%3,row=Math.floor(i/3);
+      const kx=margin+col*kpiW,ky=state.y+row*kpiH;
+      doc.setDrawColor(...COL_BORDER);doc.setFillColor(255,255,255);
+      doc.roundedRect(kx+1,ky,kpiW-2,kpiH-2,1.5,1.5,'FD');
+      doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...COL_LIGHT);
+      doc.text(k[0].toUpperCase(),kx+4,ky+5.5);
+      doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...k[2]);
+      doc.text(k[1],kx+4,ky+12.5);
+    });
+    state.y+=rows*kpiH+8;
+  }
+  function header(titulo,subtitulo){
+    doc.setFillColor(...COL_DARK);
+    doc.rect(0,0,W,30,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(255,255,255);
+    doc.text('HIELOS ANTÁRTICA',margin,15);
+    doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(190,225,245);
+    doc.text(titulo,margin,23);
+    doc.setFontSize(8.5);doc.setTextColor(150,190,215);
+    doc.text(`Generado: ${new Date().toLocaleString('es-CO')}`,W-margin,23,{align:'right'});
+    state.y=38;
+    if(subtitulo){
+      doc.setDrawColor(...COL_BORDER);doc.setFillColor(...COL_BG);
+      doc.roundedRect(margin,state.y,innerW,14,2,2,'FD');
+      doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(...COL_DARK);
+      doc.text(subtitulo,margin+4,state.y+9);
+      state.y+=21;
+    }
+  }
+  return {doc,W,H,margin,innerW,state,
+    COL_DARK,COL_CYAN,COL_SUCCESS,COL_DANGER,COL_WARN,COL_TEXT,COL_LIGHT,COL_BORDER,COL_BG,
+    fmtN,footer,checkBreak,sectionHeader,tableHeaderRow,tableRow,kpiBox,header};
+}
+
+// ===== EXPORTAR GASTOS A PDF (Globales / Ruta / Planta / Gerencial) =====
+async function exportarGastosPDF(scope){
+  showLoading('Generando PDF...');
+  try{
+    const jsPDF=await _asegurarJsPDF();
+    const mesInicio=fechaCorta().substring(0,7)+'-01';
+    const mesLabel=new Date(fechaCorta()+'T00:00:00').toLocaleDateString('es-CO',{month:'long',year:'numeric'});
+
+    const cfg={
+      global:{titulo:'Reporte de Gastos — Globales',cache:_gastosGlobalCache,icon:{ruta:'🚛',planta:'🌿',gerencial:'📈'}},
+      ruta:{titulo:'Reporte de Gastos — Ruta',cache:_gastosRutaCache},
+      planta:{titulo:'Reporte de Gastos — Planta',cache:_gastosPlantaCache},
+      gerencial:{titulo:'Reporte de Gastos — Gerencial',cache:_gastosGerCache}
+    }[scope];
+    if(!cfg){hideLoading();showToast('Ámbito de gastos no válido');return;}
+
+    // Normalizar filas a: fecha, concepto, categoria, responsable, tipo, valor
+    let filas=[];
+    if(scope==='global'){
+      const tipoLabel={ruta:'Ruta',planta:'Planta',gerencial:'Gerencial'};
+      filas=cfg.cache.map(g=>({
+        fecha:g._fecha||g.fecha||'—',
+        concepto:g.descripcion||'—',
+        categoria:CATS_LABEL[g.categoria||'sin_categoria']||g.categoria||'Sin cat.',
+        responsable:g._origen||'—',
+        tipo:tipoLabel[g._tipo]||g._tipo||'—',
+        valor:Number(g.valor||0)
+      }));
+    } else if(scope==='ruta'){
+      filas=cfg.cache.map(g=>({
+        fecha:g._fecha||'—',
+        concepto:g.descripcion||'—',
+        categoria:CATS_LABEL[g.categoria||'sin_categoria']||g.categoria||'Sin cat.',
+        responsable:g._conductor||'—',
+        tipo:'Ruta',
+        valor:Number(g.valor||0)
+      }));
+    } else if(scope==='planta'){
+      filas=cfg.cache.map(g=>({
+        fecha:g.fecha||'—',
+        concepto:g.descripcion||'—',
+        categoria:CATS_LABEL[g.categoria||'sin_categoria']||g.categoria||'Sin cat.',
+        responsable:g.responsable||'Planta',
+        tipo:'Planta',
+        valor:Number(g.valor||0)
+      }));
+    } else if(scope==='gerencial'){
+      filas=cfg.cache.map(g=>({
+        fecha:g.fecha||'—',
+        concepto:g.descripcion||'—',
+        categoria:CATS_LABEL[g.categoria||'sin_categoria']||g.categoria||'Sin cat.',
+        responsable:g.responsable||'Gerencia',
+        tipo:'Gerencial',
+        valor:Number(g.valor||0)
+      }));
+    }
+    filas.sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+
+    if(!filas.length){hideLoading();showToast('No hay gastos para exportar en este período.');return;}
+
+    const P=_crearPDFDoc(jsPDF);
+    const {doc,W,H,margin,innerW,state,COL_CYAN,COL_SUCCESS,COL_DANGER,COL_WARN,COL_TEXT,COL_LIGHT,fmtN,footer,sectionHeader,tableHeaderRow,tableRow,kpiBox,header}=P;
+
+    header(cfg.titulo,`Período: ${mesLabel}  ·  ${filas.length} gasto(s) registrados`);
+
+    const total=filas.reduce((s,f)=>s+f.valor,0);
+    const porCategoria={};
+    filas.forEach(f=>{porCategoria[f.categoria]=(porCategoria[f.categoria]||0)+f.valor;});
+    const catTop=Object.entries(porCategoria).sort((a,b)=>b[1]-a[1]);
+
+    sectionHeader('RESUMEN');
+    kpiBox([
+      ['Total gastos',fmtN(total),COL_DANGER],
+      ['N° de registros',String(filas.length),COL_TEXT],
+      ['Categoría principal',catTop[0]?catTop[0][0]:'—',COL_CYAN]
+    ]);
+
+    if(catTop.length>1){
+      sectionHeader('GASTOS POR CATEGORÍA');
+      const cw=[innerW-45,45];
+      tableHeaderRow([{label:'Categoría'},{label:'Total',align:'right'}],cw,margin);
+      catTop.forEach(([cat,val],i)=>{
+        tableRow([cat,fmtN(val)],cw,margin,{shade:i%2===1,color:COL_DANGER,aligns:['left','right']});
+      });
+      state.y+=8;
+    }
+
+    sectionHeader('DETALLE DE GASTOS');
+    const showTipo=scope==='global';
+    const cols=showTipo
+      ? [{label:'Fecha',w:20},{label:'Concepto',w:innerW-20-28-32-28-30},{label:'Categoría',w:28},{label:'Responsable',w:32},{label:'Tipo',w:28},{label:'Monto',w:30,align:'right'}]
+      : [{label:'Fecha',w:22},{label:'Concepto',w:innerW-22-32-38-35},{label:'Categoría',w:32},{label:'Responsable',w:38},{label:'Monto',w:35,align:'right'}];
+    const widths=cols.map(c=>c.w);
+    tableHeaderRow(cols.map(c=>({label:c.label,align:c.align})),widths,margin);
+    filas.forEach((f,i)=>{
+      const row=showTipo
+        ? [f.fecha,f.concepto,f.categoria,f.responsable,f.tipo,fmtN(f.valor)]
+        : [f.fecha,f.concepto,f.categoria,f.responsable,fmtN(f.valor)];
+      const aligns=showTipo?['left','left','left','left','left','right']:['left','left','left','left','right'];
+      tableRow(row,widths,margin,{shade:i%2===1,aligns});
+    });
+    tableRow(
+      showTipo?['','','','','TOTAL',fmtN(total)]:['','','','TOTAL',fmtN(total)],
+      widths,margin,{bold:true,color:COL_DANGER,aligns:showTipo?['left','left','left','left','left','right']:['left','left','left','left','right']}
+    );
+
+    footer();
+    const nombreArchivo=`gastos_${scope}_${fechaCorta()}.pdf`;
+    doc.save(nombreArchivo);
+    hideLoading();
+    showToast('✅ PDF generado');
+  }catch(e){hideLoading();showToast('Error al generar PDF: '+e.message);}
+}
+
 function filtrarGastosPorCat(texto){
   const q=texto.toLowerCase().trim();
   const lista=document.getElementById('gn-global-lista');
@@ -5037,15 +5272,20 @@ async function registrarGastoCava(){
   const desc=document.getElementById('cav-gasto-desc').value.trim();
   const valor=parseFloat(document.getElementById('cav-gasto-valor').value)||0;
   const nota=document.getElementById('cav-gasto-nota').value.trim();
+  const catEl=document.getElementById('cav-gasto-cat');
+  const categoria=(catEl&&catEl.value)||'otro';
+  const respEl=document.getElementById('cav-gasto-responsable');
+  const responsable=(respEl&&respEl.value.trim())||'';
   if(!desc){alert('Ingresa la descripción del gasto');return;}
   if(!valor){alert('Ingresa el valor');return;}
   showLoading('Registrando gasto...');
   try{
     const hora=new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
-    await sbPost('gastos_cava',{fecha:fechaCorta(),descripcion:desc,valor,categoria:'otro',nota,hora});
+    await sbPost('gastos_cava',{fecha:fechaCorta(),descripcion:desc,valor,categoria,responsable,nota,hora});
     document.getElementById('cav-gasto-desc').value='';
     document.getElementById('cav-gasto-valor').value='';
     document.getElementById('cav-gasto-nota').value='';
+    if(respEl)respEl.value='';
     hideLoading();showToast('✅ Gasto registrado');
     cargarGastosCava();
   }catch(e){hideLoading();alert('Error: '+e.message);}
@@ -5065,7 +5305,7 @@ async function cargarGastosCava(){
       <div class="highlight-row">
         <span class="hl-label">${catLabel[g.categoria]||'📋'} ${g.descripcion}
           ${g.nota?`<br><span style="font-size:11px;color:var(--text-light);">📝 ${g.nota}</span>`:''}
-          <br><span style="font-size:11px;color:var(--text-light);">🕐 ${g.hora||'—'}</span>
+          <br><span style="font-size:11px;color:var(--text-light);">🕐 ${g.hora||'—'}${g.responsable?' · 👤 '+g.responsable:''}</span>
         </span>
         <div style="text-align:right;">
           <div style="font-family:'DM Mono',monospace;font-weight:700;color:var(--danger);">${fmt(g.valor)}</div>
@@ -10562,6 +10802,157 @@ async function cargarReportes(){
     hideLoading();
     renderComparativoReportes({totalVentas,gastos:totalGastos,utilidad,numVentas:(ventas||[]).length},desde,hasta);
   }catch(e){hideLoading();showToast('Error: '+e.message);}
+}
+
+// ===== INFORME GERENCIAL CONSOLIDADO (PDF) =====
+async function exportarInformeGerencialPDF(){
+  const desde=(document.getElementById('rep-desde').value||'').trim();
+  const hasta=(document.getElementById('rep-hasta').value||'').trim();
+  if(!desde||!hasta){showToast('Selecciona el período primero (Desde / Hasta) y genera el reporte.');return;}
+  showLoading('Generando informe gerencial...');
+  try{
+    const jsPDF=await _asegurarJsPDF();
+    const [ventasRuta,despachosPlanta,cobrosRuta,gastosRDet,gastosPDet,gastosGDet]=await Promise.all([
+      sbGet('ventas',`select=${VENTAS_COLS},rutas!inner(fecha,conductor)&rutas.fecha=gte.${desde}&rutas.fecha=lte.${hasta}`).catch(()=>[]),
+      sbGet('despachos_cava',`fecha=gte.${desde}&fecha=lte.${hasta}`).catch(()=>[]),
+      sbGet('cobros_cartera',`fecha=gte.${desde}&fecha=lte.${hasta}`).catch(()=>[]),
+      sbGet('gastos',`select=descripcion,valor,categoria,rutas!inner(fecha,conductor)&rutas.fecha=gte.${desde}&rutas.fecha=lte.${hasta}`).catch(()=>[]),
+      sbGet('gastos_cava',`fecha=gte.${desde}&fecha=lte.${hasta}`).catch(()=>[]),
+      sbGet('gastos_gerenciales',`fecha=gte.${desde}&fecha=lte.${hasta}`).catch(()=>[])
+    ]);
+
+    // ── Ventas de Ruta ──
+    const totalVentasRuta=ventasRuta.reduce((s,v)=>s+Number(v.precio||0),0);
+    const efRuta=ventasRuta.filter(v=>v.forma_pago==='efectivo'||!v.forma_pago).reduce((s,v)=>s+Number(v.precio||0),0);
+    const trRuta=ventasRuta.filter(v=>v.forma_pago==='transferencia').reduce((s,v)=>s+Number(v.precio||0),0);
+    const fiRuta=ventasRuta.filter(v=>v.forma_pago==='fiado').reduce((s,v)=>s+Number(v.precio||0),0);
+
+    // ── Ventas de Planta (excluye traslados a ruta, tipo='ruta') ──
+    const ventasPlanta=despachosPlanta.filter(d=>d.tipo!=='ruta');
+    const totalVentasPlanta=ventasPlanta.reduce((s,d)=>s+Number(d.total||0),0);
+    const efPlanta=ventasPlanta.filter(d=>d.forma_pago==='efectivo').reduce((s,d)=>s+Number(d.total||0),0);
+    const trPlanta=ventasPlanta.filter(d=>d.forma_pago==='transferencia').reduce((s,d)=>s+Number(d.total||0),0);
+    const fiPlanta=ventasPlanta.filter(d=>d.forma_pago==='fiado').reduce((s,d)=>s+Number(d.total||0),0);
+
+    // ── Cartera: cobros realizados (ruta + planta) y fiados pendientes ──
+    const cobrosRealRuta=cobrosRuta.reduce((s,c)=>s+Number(c.valor||c.monto||0),0);
+    const cobrosRealPlanta=despachosPlanta.filter(d=>Number(d.abono_cava||0)>0).reduce((s,d)=>s+Number(d.abono_cava||0),0);
+    const cobrosRealTotal=cobrosRealRuta+cobrosRealPlanta;
+    const fiadosPendTotal=fiRuta+fiPlanta;
+
+    // ── Gastos detallados (concepto, categoría, responsable, fecha, monto) ──
+    const filasGastos=[
+      ...gastosRDet.map(g=>({fecha:g.rutas?.fecha||'—',concepto:g.descripcion||'—',categoria:CATS_LABEL[g.categoria||'sin_categoria']||g.categoria||'Sin cat.',responsable:g.rutas?.conductor||'—',tipo:'Ruta',valor:Number(g.valor||0)})),
+      ...gastosPDet.map(g=>({fecha:g.fecha||'—',concepto:g.descripcion||'—',categoria:CATS_LABEL[g.categoria||'sin_categoria']||g.categoria||'Sin cat.',responsable:g.responsable||'Planta',tipo:'Planta',valor:Number(g.valor||0)})),
+      ...gastosGDet.map(g=>({fecha:g.fecha||'—',concepto:g.descripcion||'—',categoria:CATS_LABEL[g.categoria||'sin_categoria']||g.categoria||'Sin cat.',responsable:g.responsable||'Gerencia',tipo:'Gerencial',valor:Number(g.valor||0)}))
+    ].sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+    const gRutaTot=gastosRDet.reduce((s,g)=>s+Number(g.valor||0),0);
+    const gPlantaTot=gastosPDet.reduce((s,g)=>s+Number(g.valor||0),0);
+    const gGerTot=gastosGDet.reduce((s,g)=>s+Number(g.valor||0),0);
+    const totalGastos=gRutaTot+gPlantaTot+gGerTot;
+
+    // ── Totales generales y utilidad ──
+    const totalVentasGeneral=totalVentasRuta+totalVentasPlanta;
+    const efectivoTotal=efRuta+efPlanta;
+    const transfTotal=trRuta+trPlanta;
+    const ingresosEfectivos=efectivoTotal+transfTotal+cobrosRealTotal;
+    const utilidadNeta=ingresosEfectivos-totalGastos;
+
+    hideLoading();
+    const P=_crearPDFDoc(jsPDF);
+    const {doc,W,margin,innerW,state,COL_CYAN,COL_SUCCESS,COL_DANGER,COL_WARN,COL_TEXT,fmtN,footer,sectionHeader,tableHeaderRow,tableRow,kpiBox,header}=P;
+
+    header('Informe Gerencial Consolidado',`Período: ${desde} al ${hasta}`);
+
+    // RESUMEN GENERAL
+    sectionHeader('RESUMEN GENERAL');
+    kpiBox([
+      ['Ventas totales',fmtN(totalVentasGeneral),COL_CYAN],
+      ['Efectivo',fmtN(efectivoTotal),COL_SUCCESS],
+      ['Transferencias',fmtN(transfTotal),[107,79,187]],
+      ['Fiados pendientes',fmtN(fiadosPendTotal),COL_WARN],
+      ['Total gastos',fmtN(totalGastos),COL_DANGER],
+      ['Utilidad neta',fmtN(utilidadNeta),utilidadNeta>=0?COL_SUCCESS:COL_DANGER]
+    ]);
+
+    // VENTAS DE RUTA
+    sectionHeader('VENTAS DE RUTA');
+    const vw=[innerW-45,45];
+    tableHeaderRow([{label:'Concepto'},{label:'Monto',align:'right'}],vw,margin);
+    tableRow(['Total ventas de ruta',fmtN(totalVentasRuta)],vw,margin,{bold:true,color:COL_CYAN,aligns:['left','right']});
+    tableRow(['Efectivo',fmtN(efRuta)],vw,margin,{shade:true,color:COL_SUCCESS,aligns:['left','right']});
+    tableRow(['Transferencias',fmtN(trRuta)],vw,margin,{color:[107,79,187],aligns:['left','right']});
+    tableRow(['Fiados',fmtN(fiRuta)],vw,margin,{shade:true,color:COL_WARN,aligns:['left','right']});
+    tableRow(['N° de ventas',String(ventasRuta.length)],vw,margin,{color:COL_TEXT,aligns:['left','right']});
+    state.y+=8;
+
+    // VENTAS DE PLANTA
+    sectionHeader('VENTAS DE PLANTA');
+    tableHeaderRow([{label:'Concepto'},{label:'Monto',align:'right'}],vw,margin);
+    tableRow(['Total ventas de planta',fmtN(totalVentasPlanta)],vw,margin,{bold:true,color:COL_CYAN,aligns:['left','right']});
+    tableRow(['Efectivo',fmtN(efPlanta)],vw,margin,{shade:true,color:COL_SUCCESS,aligns:['left','right']});
+    tableRow(['Transferencias',fmtN(trPlanta)],vw,margin,{color:[107,79,187],aligns:['left','right']});
+    tableRow(['Fiados',fmtN(fiPlanta)],vw,margin,{shade:true,color:COL_WARN,aligns:['left','right']});
+    tableRow(['N° de despachos',String(ventasPlanta.length)],vw,margin,{color:COL_TEXT,aligns:['left','right']});
+    state.y+=8;
+
+    // CARTERA
+    sectionHeader('CARTERA');
+    tableHeaderRow([{label:'Concepto'},{label:'Monto',align:'right'}],vw,margin);
+    tableRow(['Fiados pendientes (ruta + planta)',fmtN(fiadosPendTotal)],vw,margin,{color:COL_WARN,aligns:['left','right']});
+    tableRow(['Cobros realizados — ruta',fmtN(cobrosRealRuta)],vw,margin,{shade:true,color:COL_SUCCESS,aligns:['left','right']});
+    tableRow(['Cobros realizados — planta',fmtN(cobrosRealPlanta)],vw,margin,{color:COL_SUCCESS,aligns:['left','right']});
+    tableRow(['Total cobrado en el período',fmtN(cobrosRealTotal)],vw,margin,{shade:true,bold:true,color:COL_SUCCESS,aligns:['left','right']});
+    state.y+=8;
+
+    // GASTOS DETALLADOS
+    if(filasGastos.length){
+      sectionHeader('GASTOS DETALLADOS');
+      const gw=[20,innerW-20-28-32-28-30,28,32,28,30];
+      tableHeaderRow([
+        {label:'Fecha'},{label:'Concepto'},{label:'Categoría'},
+        {label:'Responsable'},{label:'Tipo'},{label:'Monto',align:'right'}
+      ],gw,margin);
+      filasGastos.forEach((f,i)=>{
+        tableRow([f.fecha,f.concepto,f.categoria,f.responsable,f.tipo,fmtN(f.valor)],gw,margin,{shade:i%2===1,aligns:['left','left','left','left','left','right']});
+      });
+      tableRow(['','','','Ruta',fmtN(gRutaTot),''],gw,margin,{bold:true,color:COL_DANGER,aligns:['left','left','left','left','right','left']});
+      tableRow(['','GASTOS','','Planta',fmtN(gPlantaTot),''],gw,margin,{bold:true,color:COL_DANGER,aligns:['left','left','left','left','right','left']});
+      tableRow(['','POR TIPO','','Gerencial',fmtN(gGerTot),''],gw,margin,{bold:true,color:COL_DANGER,aligns:['left','left','left','left','right','left']});
+      tableRow(['','','','TOTAL',fmtN(totalGastos),''],gw,margin,{bold:true,color:COL_DANGER,aligns:['left','left','left','left','right','left']});
+      state.y+=8;
+    }
+
+    // UTILIDAD NETA
+    P.checkBreak(40);
+    sectionHeader('UTILIDAD NETA DEL PERÍODO');
+    const liqRows=[
+      ['Ingresos efectivos (efectivo + transf. + cobros cartera)',fmtN(ingresosEfectivos)],
+      ['Total gastos (ruta + planta + gerenciales)',`− ${fmtN(totalGastos)}`]
+    ];
+    doc.setDrawColor(220,224,230);doc.setFillColor(255,255,255);
+    doc.roundedRect(margin,state.y,innerW,liqRows.length*7+4,1.5,1.5,'FD');
+    state.y+=5;
+    liqRows.forEach(r=>{
+      doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(...COL_TEXT);
+      doc.text(r[0],margin+5,state.y);
+      doc.setFont('helvetica','bold');
+      doc.text(r[1],W-margin-5,state.y,{align:'right'});
+      state.y+=7;
+    });
+    state.y+=6;
+    doc.setFillColor(...(utilidadNeta>=0?COL_SUCCESS:COL_DANGER));
+    doc.roundedRect(margin,state.y,innerW,16,2,2,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255,255,255);
+    doc.text('UTILIDAD NETA',margin+5,state.y+10.5);
+    doc.setFontSize(15);
+    doc.text(fmtN(utilidadNeta),W-margin-5,state.y+11,{align:'right'});
+    state.y+=22;
+
+    footer();
+    doc.save(`informe_gerencial_${desde}_a_${hasta}.pdf`);
+    showToast('✅ Informe gerencial generado');
+  }catch(e){hideLoading();showToast('Error al generar informe: '+e.message);}
 }
 
 
