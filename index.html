@@ -5000,6 +5000,15 @@ let _gastosGerCache=[];
 // ═══════════════════════════════════════════════════════════════
 // ===== HELPERS COMPARTIDOS PARA GENERAR PDFs (jsPDF) =====
 // ═══════════════════════════════════════════════════════════════
+// jsPDF con las fuentes estándar (helvetica) NO soporta emojis: al dibujarlos
+// salen como caracteres corruptos tipo "Ø=Ü‡". Esta función quita emojis y
+// selectores de variación de cualquier texto antes de dibujarlo en el PDF.
+function _limpiarTextoPDF(s){
+  return String(s==null?'':s)
+    .replace(/[\u{1F1E6}-\u{1FFFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{2300}-\u{23FF}\u{FE0F}\u{200D}]/gu,'')
+    .replace(/\s{2,}/g,' ')
+    .trim();
+}
 async function _asegurarJsPDF(){
   if(!window.jspdf){
     await new Promise((res,rej)=>{
@@ -5033,7 +5042,7 @@ function _crearPDFDoc(jsPDF){
     doc.setFillColor(...COL_DARK);
     doc.roundedRect(margin,state.y,innerW,8,1.5,1.5,'F');
     doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.setTextColor(255,255,255);
-    doc.text(title,margin+4,state.y+5.7);
+    doc.text(_limpiarTextoPDF(title),margin+4,state.y+5.7);
     state.y+=13;
   }
   function tableHeaderRow(cols,widths,x0){
@@ -5043,7 +5052,7 @@ function _crearPDFDoc(jsPDF){
     doc.rect(x0,state.y,widths.reduce((a,b)=>a+b,0),6.5,'F');
     let cx=x0;
     cols.forEach((c,i)=>{
-      doc.text(c.label,cx+(c.align==='right'?widths[i]-2:2),state.y+4.4,{align:c.align==='right'?'right':'left'});
+      doc.text(_limpiarTextoPDF(c.label),cx+(c.align==='right'?widths[i]-2:2),state.y+4.4,{align:c.align==='right'?'right':'left'});
       cx+=widths[i];
     });
     state.y+=6.5;
@@ -5057,7 +5066,7 @@ function _crearPDFDoc(jsPDF){
     let cx=x0;
     vals.forEach((v,i)=>{
       const align=opts.aligns?opts.aligns[i]:'left';
-      doc.text(String(v),cx+(align==='right'?widths[i]-2:2),state.y+rowH-2,{align:align==='right'?'right':'left',maxWidth:widths[i]-4});
+      doc.text(_limpiarTextoPDF(v),cx+(align==='right'?widths[i]-2:2),state.y+rowH-2,{align:align==='right'?'right':'left',maxWidth:widths[i]-4});
       cx+=widths[i];
     });
     state.y+=rowH;
@@ -5074,9 +5083,9 @@ function _crearPDFDoc(jsPDF){
       doc.setDrawColor(...COL_BORDER);doc.setFillColor(255,255,255);
       doc.roundedRect(kx+1,ky,kpiW-2,kpiH-2,1.5,1.5,'FD');
       doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(...COL_LIGHT);
-      doc.text(k[0].toUpperCase(),kx+4,ky+5.5);
+      doc.text(_limpiarTextoPDF(k[0]).toUpperCase(),kx+4,ky+5.5);
       doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...k[2]);
-      doc.text(k[1],kx+4,ky+12.5);
+      doc.text(_limpiarTextoPDF(k[1]),kx+4,ky+12.5);
     });
     state.y+=rows*kpiH+8;
   }
@@ -5086,7 +5095,7 @@ function _crearPDFDoc(jsPDF){
     doc.setFont('helvetica','bold');doc.setFontSize(20);doc.setTextColor(255,255,255);
     doc.text('HIELOS ANTÁRTICA',margin,15);
     doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(190,225,245);
-    doc.text(titulo,margin,23);
+    doc.text(_limpiarTextoPDF(titulo),margin,23);
     doc.setFontSize(8.5);doc.setTextColor(150,190,215);
     doc.text(`Generado: ${new Date().toLocaleString('es-CO')}`,W-margin,23,{align:'right'});
     state.y=38;
@@ -5094,7 +5103,7 @@ function _crearPDFDoc(jsPDF){
       doc.setDrawColor(...COL_BORDER);doc.setFillColor(...COL_BG);
       doc.roundedRect(margin,state.y,innerW,14,2,2,'FD');
       doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(...COL_DARK);
-      doc.text(subtitulo,margin+4,state.y+9);
+      doc.text(_limpiarTextoPDF(subtitulo),margin+4,state.y+9);
       state.y+=21;
     }
   }
@@ -5191,22 +5200,23 @@ async function exportarGastosPDF(scope){
     }
 
     sectionHeader('DETALLE DE GASTOS');
+    // Orden de columnas: Fecha | Valor | Categoría | Descripción | Responsable (+ Tipo si es global)
     const showTipo=scope==='global';
     const cols=showTipo
-      ? [{label:'Fecha',w:20},{label:'Concepto',w:innerW-20-28-32-28-30},{label:'Categoría',w:28},{label:'Responsable',w:32},{label:'Tipo',w:28},{label:'Monto',w:30,align:'right'}]
-      : [{label:'Fecha',w:22},{label:'Concepto',w:innerW-22-32-38-35},{label:'Categoría',w:32},{label:'Responsable',w:38},{label:'Monto',w:35,align:'right'}];
+      ? [{label:'Fecha',w:20},{label:'Valor',w:26,align:'right'},{label:'Categoría',w:32},{label:'Descripción',w:innerW-20-26-32-32-28},{label:'Responsable',w:32},{label:'Tipo',w:28}]
+      : [{label:'Fecha',w:22},{label:'Valor',w:28,align:'right'},{label:'Categoría',w:34},{label:'Descripción',w:innerW-22-28-34-36},{label:'Responsable',w:36}];
     const widths=cols.map(c=>c.w);
+    const alignsRow=showTipo?['left','right','left','left','left','left']:['left','right','left','left','left'];
     tableHeaderRow(cols.map(c=>({label:c.label,align:c.align})),widths,margin);
     filas.forEach((f,i)=>{
       const row=showTipo
-        ? [f.fecha,f.concepto,f.categoria,f.responsable,f.tipo,fmtN(f.valor)]
-        : [f.fecha,f.concepto,f.categoria,f.responsable,fmtN(f.valor)];
-      const aligns=showTipo?['left','left','left','left','left','right']:['left','left','left','left','right'];
-      tableRow(row,widths,margin,{shade:i%2===1,aligns});
+        ? [f.fecha,fmtN(f.valor),f.categoria,f.concepto,f.responsable,f.tipo]
+        : [f.fecha,fmtN(f.valor),f.categoria,f.concepto,f.responsable];
+      tableRow(row,widths,margin,{shade:i%2===1,aligns:alignsRow});
     });
     tableRow(
-      showTipo?['','','','','TOTAL',fmtN(total)]:['','','','TOTAL',fmtN(total)],
-      widths,margin,{bold:true,color:COL_DANGER,aligns:showTipo?['left','left','left','left','left','right']:['left','left','left','left','right']}
+      showTipo?['TOTAL',fmtN(total),'','','',''] :['TOTAL',fmtN(total),'','',''],
+      widths,margin,{bold:true,color:COL_DANGER,aligns:alignsRow}
     );
 
     footer();
@@ -10905,21 +10915,22 @@ async function exportarInformeGerencialPDF(){
     tableRow(['Total cobrado en el período',fmtN(cobrosRealTotal)],vw,margin,{shade:true,bold:true,color:COL_SUCCESS,aligns:['left','right']});
     state.y+=8;
 
-    // GASTOS DETALLADOS
+    // GASTOS DETALLADOS — Orden: Fecha | Valor | Categoría | Descripción | Responsable | Tipo
     if(filasGastos.length){
       sectionHeader('GASTOS DETALLADOS');
-      const gw=[20,innerW-20-28-32-28-30,28,32,28,30];
+      const gw=[20,26,32,innerW-20-26-32-32-28,32,28];
+      const galigns=['left','right','left','left','left','left'];
       tableHeaderRow([
-        {label:'Fecha'},{label:'Concepto'},{label:'Categoría'},
-        {label:'Responsable'},{label:'Tipo'},{label:'Monto',align:'right'}
+        {label:'Fecha'},{label:'Valor',align:'right'},{label:'Categoría'},
+        {label:'Descripción'},{label:'Responsable'},{label:'Tipo'}
       ],gw,margin);
       filasGastos.forEach((f,i)=>{
-        tableRow([f.fecha,f.concepto,f.categoria,f.responsable,f.tipo,fmtN(f.valor)],gw,margin,{shade:i%2===1,aligns:['left','left','left','left','left','right']});
+        tableRow([f.fecha,fmtN(f.valor),f.categoria,f.concepto,f.responsable,f.tipo],gw,margin,{shade:i%2===1,aligns:galigns});
       });
-      tableRow(['','','','Ruta',fmtN(gRutaTot),''],gw,margin,{bold:true,color:COL_DANGER,aligns:['left','left','left','left','right','left']});
-      tableRow(['','GASTOS','','Planta',fmtN(gPlantaTot),''],gw,margin,{bold:true,color:COL_DANGER,aligns:['left','left','left','left','right','left']});
-      tableRow(['','POR TIPO','','Gerencial',fmtN(gGerTot),''],gw,margin,{bold:true,color:COL_DANGER,aligns:['left','left','left','left','right','left']});
-      tableRow(['','','','TOTAL',fmtN(totalGastos),''],gw,margin,{bold:true,color:COL_DANGER,aligns:['left','left','left','left','right','left']});
+      tableRow(['TOTAL RUTA',fmtN(gRutaTot),'','','',''],gw,margin,{bold:true,color:COL_DANGER,aligns:galigns});
+      tableRow(['TOTAL PLANTA',fmtN(gPlantaTot),'','','',''],gw,margin,{bold:true,color:COL_DANGER,aligns:galigns});
+      tableRow(['TOTAL GERENCIAL',fmtN(gGerTot),'','','',''],gw,margin,{bold:true,color:COL_DANGER,aligns:galigns});
+      tableRow(['TOTAL GASTOS',fmtN(totalGastos),'','','',''],gw,margin,{bold:true,color:COL_DANGER,aligns:galigns,shade:true});
       state.y+=8;
     }
 
