@@ -11127,8 +11127,11 @@ async function cargarReportes(){
                   +ventasPlanta.filter(d=>d.forma_pago==='efectivo'||!d.forma_pago).reduce((s,d)=>s+Number(d.total||0),0);
     const transf=(ventas||[]).filter(v=>v.forma_pago==='transferencia').reduce((s,v)=>s+Number(v.precio||0),0)
                 +ventasPlanta.filter(d=>d.forma_pago==='transferencia').reduce((s,d)=>s+Number(d.total||0),0);
-    // Solo cuenta como pendiente lo que sigue sin cobrar (evita duplicar fiados ya saldados en Cartera)
-    const fiados=(ventas||[]).filter(v=>v.forma_pago==='fiado'&&!v.cobrado).reduce((s,v)=>s+Number(v.debe||0),0)
+    // "Fiados" (en VENTAS) = composición de ventas: TODO lo vendido a fiado en el período, sin importar si ya se cobró.
+    const fiados=(ventas||[]).filter(v=>v.forma_pago==='fiado').reduce((s,v)=>s+Number(v.precio||0),0)
+                +ventasPlanta.filter(d=>d.forma_pago==='fiado').reduce((s,d)=>s+Number(d.total||0),0);
+    // "Fiados pendientes" (en CARTERA) = solo lo que sigue sin cobrar (evita duplicar fiados ya saldados)
+    const fiadosPend=(ventas||[]).filter(v=>v.forma_pago==='fiado'&&!v.cobrado).reduce((s,v)=>s+Number(v.debe||0),0)
                 +ventasPlanta.filter(d=>d.forma_pago==='fiado'&&!d.cobrado).reduce((s,d)=>s+Number(d.total||0),0);
     const cobTot=(cobros||[]).reduce((s,c)=>s+Number(c.valor||c.monto||0),0)
                 +ventasPlanta.filter(d=>Number(d.abono_cava||0)>0).reduce((s,d)=>s+Number(d.abono_cava||0),0);
@@ -11150,7 +11153,7 @@ async function cargarReportes(){
     set('rep-g-ruta',gRuta,'negativo');set('rep-g-planta',gPlanta,'negativo');set('rep-g-ger',gGer,'negativo');
     const elInv=document.getElementById('rep-g-inversion');if(elInv)elInv.textContent=fmt(gInversion);
     set('rep-total-gastos',totalGastos,'negativo');
-    set('rep-fiados-pend',fiados,'');set('rep-cobros-real',cobTot,'positivo');
+    set('rep-fiados-pend',fiadosPend,'');set('rep-cobros-real',cobTot,'positivo');
     set('rep-ing',ingEf,'positivo');set('rep-eg',totalGastos,'negativo');
     set('rep-utilidad',utilidad,utilidad>=0?'positivo':'negativo');
     const diarias=_agregarVentasDiarias(ventas,despPlanta);
@@ -11187,21 +11190,24 @@ async function exportarInformeGerencialPDF(){
     const totalVentasRuta=ventasRuta.reduce((s,v)=>s+Number(v.precio||0),0);
     const efRuta=ventasRuta.filter(v=>v.forma_pago==='efectivo'||!v.forma_pago).reduce((s,v)=>s+Number(v.precio||0),0);
     const trRuta=ventasRuta.filter(v=>v.forma_pago==='transferencia').reduce((s,v)=>s+Number(v.precio||0),0);
-    // Solo lo que sigue sin cobrar cuenta como fiado pendiente (evita duplicar fiados ya saldados en Cartera)
-    const fiRuta=ventasRuta.filter(v=>v.forma_pago==='fiado'&&!v.cobrado).reduce((s,v)=>s+Number(v.debe||0),0);
+    // "Fiados" en el desglose de ventas = TODO lo vendido a fiado en el período (sin importar si ya se cobró)
+    const fiRuta=ventasRuta.filter(v=>v.forma_pago==='fiado').reduce((s,v)=>s+Number(v.precio||0),0);
+    // "Fiados pendientes" (Cartera) = solo lo que sigue sin cobrar
+    const fiRutaPend=ventasRuta.filter(v=>v.forma_pago==='fiado'&&!v.cobrado).reduce((s,v)=>s+Number(v.debe||0),0);
 
     // ── Ventas de Planta (excluye traslados a ruta, tipo='ruta') ──
     const ventasPlanta=despachosPlanta.filter(d=>d.tipo!=='ruta');
     const totalVentasPlanta=ventasPlanta.reduce((s,d)=>s+Number(d.total||0),0);
     const efPlanta=ventasPlanta.filter(d=>d.forma_pago==='efectivo').reduce((s,d)=>s+Number(d.total||0),0);
     const trPlanta=ventasPlanta.filter(d=>d.forma_pago==='transferencia').reduce((s,d)=>s+Number(d.total||0),0);
-    const fiPlanta=ventasPlanta.filter(d=>d.forma_pago==='fiado'&&!d.cobrado).reduce((s,d)=>s+Number(d.total||0),0);
+    const fiPlanta=ventasPlanta.filter(d=>d.forma_pago==='fiado').reduce((s,d)=>s+Number(d.total||0),0);
+    const fiPlantaPend=ventasPlanta.filter(d=>d.forma_pago==='fiado'&&!d.cobrado).reduce((s,d)=>s+Number(d.total||0),0);
 
     // ── Cartera: cobros realizados (ruta + planta) y fiados pendientes ──
     const cobrosRealRuta=cobrosRuta.reduce((s,c)=>s+Number(c.valor||c.monto||0),0);
     const cobrosRealPlanta=despachosPlanta.filter(d=>Number(d.abono_cava||0)>0).reduce((s,d)=>s+Number(d.abono_cava||0),0);
     const cobrosRealTotal=cobrosRealRuta+cobrosRealPlanta;
-    const fiadosPendTotal=fiRuta+fiPlanta;
+    const fiadosPendTotal=fiRutaPend+fiPlantaPend;
 
     // ── Gastos detallados (concepto, categoría, responsable, fecha, monto) ──
     // Los históricos importados con responsable='RUTA-HIST' son gastos de Ruta, no Gerenciales
