@@ -1490,6 +1490,12 @@
       <div class="card-title">💼 REGISTRAR GASTO GERENCIAL</div>
       <label>Descripción</label>
       <input type="text" id="gg-desc" placeholder="Ej: Factura servicios públicos">
+      <label>Tipo</label>
+      <select id="gg-tipo">
+        <option value="GASTO">💸 Gasto</option>
+        <option value="INVERSION">🏗️ Inversión</option>
+        <option value="PRESTAMOS">💰 Préstamo</option>
+      </select>
       <label>Categoría</label>
       <select id="gg-cat">
         <option value="nomina">👷 Nómina</option>
@@ -4986,18 +4992,32 @@ async function registrarGastoGerencial(){
   const desc=document.getElementById('gg-desc').value.trim();
   const valor=parseFloat(document.getElementById('gg-valor').value)||0;
   const cat=document.getElementById('gg-cat').value;
-  const nota=document.getElementById('gg-nota').value.trim();
+  const tipoEl=document.getElementById('gg-tipo');
+  const tipo=tipoEl?tipoEl.value:'GASTO'; // GASTO | INVERSION | PRESTAMOS
+  const notaTxt=document.getElementById('gg-nota').value.trim();
   const respEl=document.getElementById('gg-responsable');
   const responsable=(respEl&&respEl.value.trim())||'';
   if(!desc){alert('Ingresa la descripción');return;}
   if(!valor){alert('Ingresa el valor');return;}
   showLoading('Guardando...');
   try{
-    await sbPost('gastos_gerenciales',{fecha:fechaCorta(),descripcion:desc,valor,categoria:cat,responsable,nota});
+    // La categoría real se guarda tal cual; Inversión/Préstamo se marcan con una
+    // categoría especial + nota, para que los reportes los distingan correctamente
+    // (misma convención que _derivarTipoGasto usa para el resto del sistema).
+    let categoriaFinal=cat, nota=notaTxt;
+    if(tipo==='INVERSION'){
+      categoriaFinal='inversion';
+      nota=`[INVERSION] ${CATS_LABEL[cat]||cat}${notaTxt?' · '+notaTxt:''}`;
+    } else if(tipo==='PRESTAMOS'){
+      categoriaFinal='prestamo_empleado';
+      nota=`[PRESTAMOS] ${CATS_LABEL[cat]||cat}${notaTxt?' · '+notaTxt:''}`;
+    }
+    await sbPost('gastos_gerenciales',{fecha:fechaCorta(),descripcion:desc,valor,categoria:categoriaFinal,responsable,nota});
     document.getElementById('gg-desc').value='';
     document.getElementById('gg-valor').value='';
     document.getElementById('gg-nota').value='';
     if(respEl)respEl.value='';
+    if(tipoEl)tipoEl.value='GASTO';
     hideLoading();showToast('✅ Gasto gerencial registrado');
     cargarGastosGerenciales();
   }catch(e){hideLoading();alert('Error: '+e.message);}
