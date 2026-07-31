@@ -2577,6 +2577,7 @@
       <div class="reporte-fila"><span class="reporte-label">Ruta</span><span class="reporte-val negativo" id="rep-g-ruta">$0</span></div>
       <div class="reporte-fila"><span class="reporte-label">Planta / Cava</span><span class="reporte-val negativo" id="rep-g-planta">$0</span></div>
       <div class="reporte-fila"><span class="reporte-label">Gerenciales</span><span class="reporte-val negativo" id="rep-g-ger">$0</span></div>
+      <div class="reporte-fila"><span class="reporte-label">🏗️ Inversión (incluida en Gerenciales)</span><span class="reporte-val" style="color:#6b4fbb;" id="rep-g-inversion">$0</span></div>
       <div class="reporte-fila" style="padding-top:10px;"><span class="reporte-label" style="font-weight:700;">Total gastos</span><span class="reporte-val negativo" id="rep-total-gastos" style="font-size:18px;">$0</span></div>
     </div>
     <div class="reporte-box">
@@ -11136,6 +11137,8 @@ async function cargarReportes(){
     const gRuta=(gastosR||[]).reduce((s,g)=>s+Number(g.valor||g.monto||0),0)+gGerRutaHist;
     const gPlanta=(gastosP||[]).reduce((s,g)=>s+Number(g.valor||g.monto||0),0);
     const gGer=(gastosG||[]).filter(g=>g.responsable!=='RUTA-HIST').reduce((s,g)=>s+Number(g.valor||g.monto||0),0);
+    // Inversión: subconjunto de Gerenciales marcado con Tipo=Inversión (ya incluido en gGer, solo se muestra aparte)
+    const gInversion=(gastosG||[]).filter(g=>g.responsable!=='RUTA-HIST'&&_derivarTipoGasto(g)==='INVERSION').reduce((s,g)=>s+Number(g.valor||g.monto||0),0);
     const totalGastos=gRuta+gPlanta+gGer;
     const ingEf=efectivo+transf+cobTot;
     const utilidad=ingEf-totalGastos;
@@ -11145,6 +11148,7 @@ async function cargarReportes(){
     set('rep-efectivo',efectivo,'positivo');set('rep-transf',transf,'positivo');
     set('rep-fiados',fiados,'');set('rep-num-ventas',(ventas||[]).length+ventasPlanta.length,'neutro');
     set('rep-g-ruta',gRuta,'negativo');set('rep-g-planta',gPlanta,'negativo');set('rep-g-ger',gGer,'negativo');
+    const elInv=document.getElementById('rep-g-inversion');if(elInv)elInv.textContent=fmt(gInversion);
     set('rep-total-gastos',totalGastos,'negativo');
     set('rep-fiados-pend',fiados,'');set('rep-cobros-real',cobTot,'positivo');
     set('rep-ing',ingEf,'positivo');set('rep-eg',totalGastos,'negativo');
@@ -11213,6 +11217,8 @@ async function exportarInformeGerencialPDF(){
     const gPlantaTot=gastosPDet.reduce((s,g)=>s+Number(g.valor||0),0);
     const gGerTot=gastosGDetReal.reduce((s,g)=>s+Number(g.valor||0),0);
     const totalGastos=gRutaTot+gPlantaTot+gGerTot;
+    // Inversión: subconjunto de Gerenciales marcado con Tipo=Inversión (ya incluido en gGerTot, solo se muestra aparte)
+    const gInversionTot=gastosGDetReal.filter(g=>_derivarTipoGasto(g)==='INVERSION').reduce((s,g)=>s+Number(g.valor||0),0);
 
     // ── Totales generales y utilidad ──
     const totalVentasGeneral=totalVentasRuta+totalVentasPlanta;
@@ -11235,6 +11241,7 @@ async function exportarInformeGerencialPDF(){
       ['Transferencias',fmtN(transfTotal),[107,79,187]],
       ['Fiados pendientes',fmtN(fiadosPendTotal),COL_WARN],
       ['Total gastos',fmtN(totalGastos),COL_DANGER],
+      ['Inversión (incl. en gastos)',fmtN(gInversionTot),[107,79,187]],
       ['Utilidad neta',fmtN(utilidadNeta),utilidadNeta>=0?COL_SUCCESS:COL_DANGER]
     ]);
 
