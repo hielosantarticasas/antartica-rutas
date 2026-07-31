@@ -1984,7 +1984,8 @@
       </div>
       <div id="cav-campo-cliente" style="display:none;">
         <label>Cliente / Nombre</label>
-        <input type="text" id="cav-cliente" placeholder="Nombre del cliente">
+        <input type="text" id="cav-cliente" placeholder="Escribe para buscar un cliente ya registrado" autocomplete="off" oninput="buscarClienteParaCava(this.value)" onfocus="buscarClienteParaCava(this.value)" onblur="setTimeout(()=>{const el=document.getElementById('cav-cliente-resultados');if(el)el.innerHTML='';},250)">
+        <div id="cav-cliente-resultados"></div>
       </div>
       <div id="cav-campo-vendedor-asig" style="display:none;">
         <label>Vendedor asignado</label>
@@ -2567,6 +2568,11 @@
       <div class="reporte-fila" style="padding-top:10px;"><span class="reporte-label" style="font-weight:700;">Total gastos</span><span class="reporte-val negativo" id="rep-total-gastos" style="font-size:18px;">$0</span></div>
     </div>
     <div class="reporte-box">
+      <div class="reporte-titulo">VENTAS POR MÓDULO</div>
+      <div class="reporte-fila"><span class="reporte-label">Ruta</span><span class="reporte-val positivo" id="rep-v-ruta">$0</span></div>
+      <div class="reporte-fila"><span class="reporte-label">Planta</span><span class="reporte-val positivo" id="rep-v-planta">$0</span></div>
+    </div>
+    <div class="reporte-box">
       <div class="reporte-titulo">CARTERA</div>
       <div class="reporte-fila"><span class="reporte-label">Fiados pendientes</span><span class="reporte-val" style="color:var(--warning)" id="rep-fiados-pend">$0</span></div>
       <div class="reporte-fila"><span class="reporte-label">Cobros realizados</span><span class="reporte-val positivo" id="rep-cobros-real">$0</span></div>
@@ -2579,6 +2585,14 @@
         <span class="reporte-label" style="font-size:15px;font-weight:700;">Utilidad neta</span>
         <span class="reporte-val" id="rep-utilidad" style="font-size:24px;">$0</span>
       </div>
+    </div>
+    <div class="reporte-box">
+      <div class="reporte-titulo">VENTAS DIARIAS (RUTA + PLANTA)</div>
+      <div id="rep-ventas-diarias" style="font-size:12px;"></div>
+    </div>
+    <div class="reporte-box">
+      <div class="reporte-titulo">UNIDADES VENDIDAS POR PRECIO</div>
+      <div id="rep-unidades-precio" style="font-size:12px;"></div>
     </div>
     <button class="btn btn-primary" onclick="exportarInformeGerencialPDF()" style="margin-top:4px;">📄 EXPORTAR INFORME GERENCIAL (PDF)</button>
   </div>
@@ -4250,7 +4264,7 @@ function buscarClienteParaVenta(texto){
     const t=(texto||'').trim().toLowerCase();
     if(!t){el.innerHTML='';return;}
     if(!todosLosClientes.length)await cargarClientes();
-    const encontrados=todosLosClientes.filter(c=>(c.nombre||'').toLowerCase().includes(t)).slice(0,8);
+    const encontrados=_dedupeClientesPorNombre(todosLosClientes.filter(c=>(c.nombre||'').toLowerCase().includes(t))).slice(0,8);
     if(!encontrados.length){
       el.innerHTML='<div style="font-size:12px;color:var(--warning);padding:8px 10px;background:var(--warning-bg);border-radius:8px;margin-top:2px;">Sin coincidencias. <span onclick="irACrearClienteDesdeVenta()" style="color:var(--cyan);font-weight:700;cursor:pointer;text-decoration:underline;">Crear cliente nuevo</span></div>';
       return;
@@ -4278,6 +4292,49 @@ function irACrearClienteDesdeVenta(){
   prepFormCliente();
   showScreen('screen-nuevo-cliente');
   showToast('Crea el cliente y luego vuelve a Ruta → Ventas para registrar la venta');
+}
+
+// Quita sugerencias repetidas (mismo nombre normalizado) para que cada
+// cliente real aparezca una sola vez en los resultados de búsqueda.
+function _dedupeClientesPorNombre(lista){
+  const vistos=new Set();
+  const out=[];
+  for(const c of lista){
+    const key=(c.nombre||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+    if(vistos.has(key))continue;
+    vistos.add(key);
+    out.push(c);
+  }
+  return out;
+}
+
+let _cavaClienteBuscarTimer=null;
+function buscarClienteParaCava(texto){
+  clearTimeout(_cavaClienteBuscarTimer);
+  _cavaClienteBuscarTimer=setTimeout(async()=>{
+    const el=document.getElementById('cav-cliente-resultados');
+    if(!el)return;
+    const t=(texto||'').trim().toLowerCase();
+    if(!t){el.innerHTML='';return;}
+    if(!todosLosClientes.length)await cargarClientes();
+    const encontrados=_dedupeClientesPorNombre(todosLosClientes.filter(c=>(c.nombre||'').toLowerCase().includes(t))).slice(0,8);
+    if(!encontrados.length){el.innerHTML='';return;}
+    el.innerHTML='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:2px;">'+
+      encontrados.map(c=>`
+        <div onclick="_seleccionarClienteCava('${c.id}')" style="padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;">
+          <div style="font-size:13px;font-weight:600;">${c.nombre}</div>
+          ${c.direccion?`<div style="font-size:11px;color:var(--text-light);">${c.direccion}</div>`:''}
+        </div>`).join('')+
+      '</div>';
+  },200);
+}
+function _seleccionarClienteCava(id){
+  const c=todosLosClientes.find(x=>x.id===id);
+  if(!c)return;
+  const inp=document.getElementById('cav-cliente');
+  inp.value=c.nombre;
+  const el=document.getElementById('cav-cliente-resultados');
+  if(el)el.innerHTML='';
 }
 
 async function cargarMiniStatsRuta(){
@@ -4522,7 +4579,10 @@ const CATS_BASE={
   bolsas_de_empaque:'📦 Bolsas de empaque',insumos_cava_nueva:'🧊 Insumos cava nueva',
   nomina_empleado_planta:'👷 Nómina empleado Planta',prestamo_empleado:'💰 Préstamo empleado',
   almuerzos:'🍽️ Almuerzos',insumos_administrativos:'🗂️ Insumos administrativos',
-  insumos_de_produccion:'🏭 Insumos de producción',mantenimientos:'🔧 Mantenimientos'
+  insumos_de_produccion:'🏭 Insumos de producción',mantenimientos:'🔧 Mantenimientos',
+  insumos_de_venta:'🛒 Insumos de venta',compra_hielos:'🧊 Compra de hielos',
+  alarma:'🚨 Alarma',dotacion:'🥾 Dotación',pago_proveedor:'🧾 Pago a proveedor',
+  seguridad_social:'🩺 Seguridad social',intereses:'📈 Intereses',inversion:'🏗️ Inversión'
 };
 let catsCustom={};
 
@@ -9607,7 +9667,7 @@ function buscarClienteParaParada(texto){
     const t=texto.trim().toLowerCase();
     if(!t){el.innerHTML='';return;}
     if(!todosLosClientes.length)await cargarClientes();
-    const encontrados=todosLosClientes.filter(c=>(c.nombre||'').toLowerCase().includes(t)).slice(0,8);
+    const encontrados=_dedupeClientesPorNombre(todosLosClientes.filter(c=>(c.nombre||'').toLowerCase().includes(t))).slice(0,8);
     if(!encontrados.length){el.innerHTML='<div style="font-size:12px;color:var(--text-light);padding:6px 0;">Sin resultados.</div>';return;}
     el.innerHTML=encontrados.map(c=>{
       const prefix='prc-'+c.id;
@@ -10019,7 +10079,7 @@ function _buscarClienteParaPoolCore(texto,cfg){
   _poolTimers[cfg.prefixBase]=setTimeout(async()=>{
     if(!todosLosClientes.length)await cargarClientes().catch(()=>{});
     const t=texto.trim().toLowerCase();
-    const matches=todosLosClientes.filter(c=>(c.nombre||'').toLowerCase().includes(t)).slice(0,8);
+    const matches=_dedupeClientesPorNombre(todosLosClientes.filter(c=>(c.nombre||'').toLowerCase().includes(t))).slice(0,8);
     if(!matches.length){cont.innerHTML='<div style="font-size:12px;color:var(--text-light);padding:6px 0;">Sin resultados.</div>';return;}
     cont.innerHTML=matches.map(c=>{
       const prefix=cfg.prefixBase+'-'+c.id;
@@ -10724,20 +10784,24 @@ function _pct(actual,anterior){
   return((actual-anterior)/Math.abs(anterior))*100;
 }
 async function _metricasPeriodoReporte(desde,hasta){
-  const [ventas,cobros,gastosR,gastosP,gastosG]=await Promise.all([
+  const [ventas,despPlanta,cobros,gastosR,gastosP,gastosG]=await Promise.all([
     sbGet('ventas','select='+VENTAS_COLS+',rutas!inner(fecha)&rutas.fecha=gte.'+desde+'&rutas.fecha=lte.'+hasta).catch(()=>[]),
+    sbGet('despachos_cava','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[]),
     sbGet('cobros_cartera','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[]),
     sbGet('gastos','select=valor,rutas!inner(fecha)&rutas.fecha=gte.'+desde+'&rutas.fecha=lte.'+hasta).catch(()=>[]),
     sbGet('gastos_cava','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[]),
     sbGet('gastos_gerenciales','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[])
   ]);
-  const totalVentas=(ventas||[]).reduce((s,v)=>s+Number(v.precio||0),0);
-  const cobTot=(cobros||[]).reduce((s,c)=>s+Number(c.valor||c.monto||0),0);
-  const efectivo=(ventas||[]).filter(v=>v.forma_pago==='efectivo'||!v.forma_pago).reduce((s,v)=>s+Number(v.precio||0),0);
-  const transf=(ventas||[]).filter(v=>v.forma_pago==='transferencia').reduce((s,v)=>s+Number(v.precio||0),0);
+  const ventasPlanta=(despPlanta||[]).filter(d=>d.tipo!=='ruta');
+  const totalVentas=(ventas||[]).reduce((s,v)=>s+Number(v.precio||0),0)+ventasPlanta.reduce((s,d)=>s+Number(d.total||0),0);
+  const cobTot=(cobros||[]).reduce((s,c)=>s+Number(c.valor||c.monto||0),0)+ventasPlanta.filter(d=>Number(d.abono_cava||0)>0).reduce((s,d)=>s+Number(d.abono_cava||0),0);
+  const efectivo=(ventas||[]).filter(v=>v.forma_pago==='efectivo'||!v.forma_pago).reduce((s,v)=>s+Number(v.precio||0),0)
+                +ventasPlanta.filter(d=>d.forma_pago==='efectivo'||!d.forma_pago).reduce((s,d)=>s+Number(d.total||0),0);
+  const transf=(ventas||[]).filter(v=>v.forma_pago==='transferencia').reduce((s,v)=>s+Number(v.precio||0),0)
+              +ventasPlanta.filter(d=>d.forma_pago==='transferencia').reduce((s,d)=>s+Number(d.total||0),0);
   const gastos=(gastosR||[]).reduce((s,g)=>s+Number(g.valor||0),0)+(gastosP||[]).reduce((s,g)=>s+Number(g.valor||0),0)+(gastosG||[]).reduce((s,g)=>s+Number(g.valor||0),0);
   const utilidad=(efectivo+transf+cobTot)-gastos;
-  return{totalVentas,gastos,utilidad,numVentas:(ventas||[]).length};
+  return{totalVentas,gastos,utilidad,numVentas:(ventas||[]).length+ventasPlanta.length};
 }
 function _insightsReporte(cur,prev){
   const insights=[];
@@ -10779,24 +10843,77 @@ async function renderComparativoReportes(curM,desde,hasta){
   }catch(e){cont.style.display='none';}
 }
 
+// Agrupa ventas de ruta + despachos de planta por día (fecha real de la ruta / fecha del despacho)
+function _agregarVentasDiarias(ventasRuta,despachosPlanta){
+  const byDate={};
+  (ventasRuta||[]).forEach(v=>{
+    const f=(v.rutas&&v.rutas.fecha)||(v.created_at||'').slice(0,10)||'—';
+    if(!byDate[f])byDate[f]={fecha:f,ruta:0,planta:0,numRuta:0,numPlanta:0};
+    byDate[f].ruta+=Number(v.precio||0);byDate[f].numRuta++;
+  });
+  (despachosPlanta||[]).filter(d=>d.tipo!=='ruta').forEach(d=>{
+    const f=d.fecha||'—';
+    if(!byDate[f])byDate[f]={fecha:f,ruta:0,planta:0,numRuta:0,numPlanta:0};
+    byDate[f].planta+=Number(d.total||0);byDate[f].numPlanta++;
+  });
+  return Object.values(byDate).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+}
+// Agrupa unidades vendidas (20/10/3 kg) por su precio unitario, ruta + planta
+function _agregarUnidadesPorPrecio(ventasRuta,despachosPlanta){
+  const map={};
+  function add(tam,precio,cant){
+    cant=Number(cant||0);precio=Number(precio||0);
+    if(!cant)return;
+    const key=tam+'|'+precio;
+    if(!map[key])map[key]={tam,precio,unidades:0,monto:0};
+    map[key].unidades+=cant;map[key].monto+=cant*precio;
+  }
+  (ventasRuta||[]).forEach(v=>{add('20kg',v.p20,v.b20);add('10kg',v.p10,v.b10);add('3kg',v.p3,v.b3);});
+  (despachosPlanta||[]).filter(d=>d.tipo!=='ruta').forEach(d=>{add('20kg',d.p20,d.b20);add('10kg',d.p10,d.b10);add('3kg',d.p3,d.b3);});
+  return Object.values(map).sort((a,b)=>a.tam.localeCompare(b.tam)||b.precio-a.precio);
+}
+function _renderVentasDiariasHTML(filas){
+  if(!filas.length)return'<div style="color:var(--text-light);">Sin ventas en el período.</div>';
+  return '<table style="width:100%;border-collapse:collapse;">'+
+    '<tr style="font-weight:700;border-bottom:1px solid var(--border);"><td style="padding:4px 2px;">Fecha</td><td style="padding:4px 2px;text-align:right;">Ruta</td><td style="padding:4px 2px;text-align:right;">Planta</td><td style="padding:4px 2px;text-align:right;">Total</td></tr>'+
+    filas.map(f=>`<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 2px;">${f.fecha}</td><td style="padding:4px 2px;text-align:right;">${fmt(f.ruta)}</td><td style="padding:4px 2px;text-align:right;">${fmt(f.planta)}</td><td style="padding:4px 2px;text-align:right;font-weight:700;">${fmt(f.ruta+f.planta)}</td></tr>`).join('')+
+    '</table>';
+}
+function _renderUnidadesPrecioHTML(filas){
+  if(!filas.length)return'<div style="color:var(--text-light);">Sin unidades vendidas en el período.</div>';
+  return '<table style="width:100%;border-collapse:collapse;">'+
+    '<tr style="font-weight:700;border-bottom:1px solid var(--border);"><td style="padding:4px 2px;">Tamaño</td><td style="padding:4px 2px;text-align:right;">Precio unit.</td><td style="padding:4px 2px;text-align:right;">Unidades</td><td style="padding:4px 2px;text-align:right;">Monto</td></tr>'+
+    filas.map(f=>`<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 2px;">${f.tam}</td><td style="padding:4px 2px;text-align:right;">${fmt(f.precio)}</td><td style="padding:4px 2px;text-align:right;">${f.unidades}</td><td style="padding:4px 2px;text-align:right;font-weight:700;">${fmt(f.monto)}</td></tr>`).join('')+
+    '</table>';
+}
+
 async function cargarReportes(){
   const desde=(document.getElementById('rep-desde').value||'').trim();
   const hasta=(document.getElementById('rep-hasta').value||'').trim();
   if(!desde||!hasta){showToast('Selecciona las fechas');return;}
   showLoading('Generando reporte...');
   try{
-    const [ventas,cobros,gastosR,gastosP,gastosG]=await Promise.all([
+    const [ventas,despPlanta,cobros,gastosR,gastosP,gastosG]=await Promise.all([
       sbGet('ventas','select='+VENTAS_COLS+',rutas!inner(fecha)&rutas.fecha=gte.'+desde+'&rutas.fecha=lte.'+hasta).catch(()=>[]),
-      sbGet('cobros_cartera','fecha=gte.'+desde+'&fecha=lte.'+hasta),
+      sbGet('despachos_cava','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[]),
+      sbGet('cobros_cartera','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[]),
       sbGet('gastos','select=valor,rutas!inner(fecha)&rutas.fecha=gte.'+desde+'&rutas.fecha=lte.'+hasta).catch(()=>[]),
-      sbGet('gastos_cava','fecha=gte.'+desde+'&fecha=lte.'+hasta),
-      sbGet('gastos_gerenciales','fecha=gte.'+desde+'&fecha=lte.'+hasta)
+      sbGet('gastos_cava','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[]),
+      sbGet('gastos_gerenciales','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[])
     ]);
-    const totalVentas=(ventas||[]).reduce((s,v)=>s+(v.precio||0),0);
-    const efectivo=(ventas||[]).filter(v=>v.forma_pago==='efectivo').reduce((s,v)=>s+(v.precio||0),0);
-    const transf=(ventas||[]).filter(v=>v.forma_pago==='transferencia').reduce((s,v)=>s+(v.precio||0),0);
-    const fiados=(ventas||[]).filter(v=>v.forma_pago==='fiado').reduce((s,v)=>s+(v.precio||0),0);
-    const cobTot=(cobros||[]).reduce((s,c)=>s+Number(c.valor||c.monto||0),0);
+    const ventasPlanta=(despPlanta||[]).filter(d=>d.tipo!=='ruta');
+    // Nota: forma_pago vacío/nulo se trata como efectivo (mismo criterio usado en el resto de la app)
+    const totalVentasRuta=(ventas||[]).reduce((s,v)=>s+Number(v.precio||0),0);
+    const totalVentasPlanta=ventasPlanta.reduce((s,d)=>s+Number(d.total||0),0);
+    const totalVentas=totalVentasRuta+totalVentasPlanta;
+    const efectivo=(ventas||[]).filter(v=>v.forma_pago==='efectivo'||!v.forma_pago).reduce((s,v)=>s+Number(v.precio||0),0)
+                  +ventasPlanta.filter(d=>d.forma_pago==='efectivo'||!d.forma_pago).reduce((s,d)=>s+Number(d.total||0),0);
+    const transf=(ventas||[]).filter(v=>v.forma_pago==='transferencia').reduce((s,v)=>s+Number(v.precio||0),0)
+                +ventasPlanta.filter(d=>d.forma_pago==='transferencia').reduce((s,d)=>s+Number(d.total||0),0);
+    const fiados=(ventas||[]).filter(v=>v.forma_pago==='fiado').reduce((s,v)=>s+Number(v.precio||0),0)
+                +ventasPlanta.filter(d=>d.forma_pago==='fiado').reduce((s,d)=>s+Number(d.total||0),0);
+    const cobTot=(cobros||[]).reduce((s,c)=>s+Number(c.valor||c.monto||0),0)
+                +ventasPlanta.filter(d=>Number(d.abono_cava||0)>0).reduce((s,d)=>s+Number(d.abono_cava||0),0);
     const gRuta=(gastosR||[]).reduce((s,g)=>s+Number(g.valor||g.monto||0),0);
     const gPlanta=(gastosP||[]).reduce((s,g)=>s+Number(g.valor||g.monto||0),0);
     const gGer=(gastosG||[]).reduce((s,g)=>s+Number(g.valor||g.monto||0),0);
@@ -10805,16 +10922,21 @@ async function cargarReportes(){
     const utilidad=ingEf-totalGastos;
     const set=(id,val,cls)=>{const el=document.getElementById(id);if(el){el.textContent=typeof val==='number'?fmt(val):String(val);if(cls)el.className='reporte-val '+cls;}};
     set('rep-total-ventas',totalVentas,'neutro');
+    set('rep-v-ruta',totalVentasRuta,'positivo');set('rep-v-planta',totalVentasPlanta,'positivo');
     set('rep-efectivo',efectivo,'positivo');set('rep-transf',transf,'positivo');
-    set('rep-fiados',fiados,'');set('rep-num-ventas',(ventas||[]).length,'neutro');
+    set('rep-fiados',fiados,'');set('rep-num-ventas',(ventas||[]).length+ventasPlanta.length,'neutro');
     set('rep-g-ruta',gRuta,'negativo');set('rep-g-planta',gPlanta,'negativo');set('rep-g-ger',gGer,'negativo');
     set('rep-total-gastos',totalGastos,'negativo');
     set('rep-fiados-pend',fiados,'');set('rep-cobros-real',cobTot,'positivo');
     set('rep-ing',ingEf,'positivo');set('rep-eg',totalGastos,'negativo');
     set('rep-utilidad',utilidad,utilidad>=0?'positivo':'negativo');
+    const diarias=_agregarVentasDiarias(ventas,despPlanta);
+    const unidadesPrecio=_agregarUnidadesPorPrecio(ventas,despPlanta);
+    const elD=document.getElementById('rep-ventas-diarias');if(elD)elD.innerHTML=_renderVentasDiariasHTML(diarias);
+    const elU=document.getElementById('rep-unidades-precio');if(elU)elU.innerHTML=_renderUnidadesPrecioHTML(unidadesPrecio);
     const res=document.getElementById('reportes-resultado');if(res)res.style.display='block';
     hideLoading();
-    renderComparativoReportes({totalVentas,gastos:totalGastos,utilidad,numVentas:(ventas||[]).length},desde,hasta);
+    renderComparativoReportes({totalVentas,gastos:totalGastos,utilidad,numVentas:(ventas||[]).length+ventasPlanta.length},desde,hasta);
   }catch(e){hideLoading();showToast('Error: '+e.message);}
 }
 
@@ -10909,6 +11031,36 @@ async function exportarInformeGerencialPDF(){
     tableRow(['Fiados',fmtN(fiPlanta)],vw,margin,{shade:true,color:COL_WARN,aligns:['left','right']});
     tableRow(['N° de despachos',String(ventasPlanta.length)],vw,margin,{color:COL_TEXT,aligns:['left','right']});
     state.y+=8;
+
+    // VENTAS DIARIAS (RUTA + PLANTA)
+    const diarias=_agregarVentasDiarias(ventasRuta,despachosPlanta);
+    if(diarias.length){
+      P.checkBreak(30);
+      sectionHeader('VENTAS DIARIAS (RUTA + PLANTA)');
+      const dw2=[30,(innerW-30)/3,(innerW-30)/3,(innerW-30)/3];
+      tableHeaderRow([{label:'Fecha'},{label:'Ruta',align:'right'},{label:'Planta',align:'right'},{label:'Total',align:'right'}],dw2,margin);
+      diarias.forEach((f,i)=>{
+        P.checkBreak(8);
+        tableRow([f.fecha,fmtN(f.ruta),fmtN(f.planta),fmtN(f.ruta+f.planta)],dw2,margin,{shade:i%2===1,aligns:['left','right','right','right']});
+      });
+      tableRow(['TOTAL',fmtN(diarias.reduce((s,f)=>s+f.ruta,0)),fmtN(diarias.reduce((s,f)=>s+f.planta,0)),fmtN(diarias.reduce((s,f)=>s+f.ruta+f.planta,0))],dw2,margin,{bold:true,color:COL_CYAN,aligns:['left','right','right','right']});
+      state.y+=8;
+    }
+
+    // UNIDADES VENDIDAS POR PRECIO
+    const unidadesPrecio=_agregarUnidadesPorPrecio(ventasRuta,despachosPlanta);
+    if(unidadesPrecio.length){
+      P.checkBreak(30);
+      sectionHeader('UNIDADES VENDIDAS POR PRECIO');
+      const uw2=[innerW/4,innerW/4,innerW/4,innerW/4];
+      tableHeaderRow([{label:'Tamaño'},{label:'Precio unit.',align:'right'},{label:'Unidades',align:'right'},{label:'Monto',align:'right'}],uw2,margin);
+      unidadesPrecio.forEach((f,i)=>{
+        P.checkBreak(8);
+        tableRow([f.tam,fmtN(f.precio),String(f.unidades),fmtN(f.monto)],uw2,margin,{shade:i%2===1,aligns:['left','right','right','right']});
+      });
+      tableRow(['TOTAL','',String(unidadesPrecio.reduce((s,f)=>s+f.unidades,0)),fmtN(unidadesPrecio.reduce((s,f)=>s+f.monto,0))],uw2,margin,{bold:true,color:COL_CYAN,aligns:['left','right','right','right']});
+      state.y+=8;
+    }
 
     // CARTERA
     sectionHeader('CARTERA');
