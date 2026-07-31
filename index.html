@@ -2627,6 +2627,7 @@
     </div>
   </div>
 
+  <button class="btn btn-outline" onclick="exportarFacturacionPDF()" style="width:100%;margin-bottom:10px;">📄 EXPORTAR PDF DETALLADO</button>
   <input type="text" id="fact-buscar" placeholder="🔍 Buscar por cliente..." oninput="filtrarFacturacion(this.value)" style="margin-bottom:8px;">
   <div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;">
     <button class="tab active" id="ftab-todas" onclick="filtrarFacturacionTab('todas')" style="flex:1;min-width:fit-content;">📋 Todas</button>
@@ -2761,7 +2762,7 @@ const VENTAS_COLS = 'id,ruta_id,cliente,tipo_cliente,b20,b10,b3,p20,p10,p3,preci
 
 async function sbGet(table, params=''){
   const ctrl=new AbortController();
-  const timer=setTimeout(()=>ctrl.abort(),12000); // 12s timeout
+  const timer=setTimeout(()=>ctrl.abort(),25000); // 25s timeout
   try{
     const r=await fetch(`${SB_URL}/rest/v1/${table}?${params}`,{headers:{...HEADERS,'Prefer':'return=representation'},signal:ctrl.signal});
     clearTimeout(timer);
@@ -5340,14 +5341,17 @@ async function exportarGastosPDFFormatoOriginal(){
     const mesLabel=new Date(fechaCorta()+'T00:00:00').toLocaleDateString('es-CO',{month:'long',year:'numeric'});
 
     const [rutas,gastosCava,gastosGer]=await Promise.all([
-      sbGet('rutas',`fecha=gte.${mesInicio}&select=id,conductor,fecha`),
-      sbGet('gastos_cava',`fecha=gte.${mesInicio}`).catch(()=>[]),
-      sbGet('gastos_gerenciales',`fecha=gte.${mesInicio}`).catch(()=>[])
+      sbGet('rutas',`fecha=gte.${mesInicio}&select=id,conductor,fecha&limit=10000`),
+      sbGet('gastos_cava',`fecha=gte.${mesInicio}&limit=10000`).catch(()=>[]),
+      sbGet('gastos_gerenciales',`fecha=gte.${mesInicio}&limit=10000`).catch(()=>[])
     ]);
+    const fechaPorRuta={};
+    rutas.forEach(r=>{fechaPorRuta[r.id]=r.fecha;});
     const gastosRuta=[];
-    for(const r of rutas){
-      const g=await sbGet('gastos',`ruta_id=eq.${r.id}&select=*`).catch(()=>[]);
-      g.forEach(x=>gastosRuta.push({...x,fecha:r.fecha}));
+    if(rutas.length){
+      const idsList=rutas.map(r=>r.id).join(',');
+      const g=await sbGet('gastos',`ruta_id=in.(${idsList})&select=*&limit=10000`).catch(()=>[]);
+      g.forEach(x=>gastosRuta.push({...x,fecha:fechaPorRuta[x.ruta_id]||x.fecha}));
     }
 
     const filas=[
@@ -8168,6 +8172,86 @@ function _dibujarFacturaPDF(origen,data,numero,clienteInfo){
   showToast('✅ Factura '+numFmt+' generada');
 }
 
+// ===== FACTURACIÓN — PDF DETALLADO (contado/fiado, ruta/planta) =====
+async function exportarFacturacionPDF(){
+  showLoading('Generando PDF...');
+  try{
+    const jsPDF=await _asegurarJsPDF();
+    const desde=document.getElementById('fact-desde')?.value||'';
+    const hasta=document.getElementById('fact-hasta')?.value||'';
+    let qVentas=`select=${VENTAS_COLS},rutas(conductor,fecha,vehiculo)&order=created_at.asc&limit=10000`;
+    let qCava=`select=*&order=created_at.asc&limit=10000`;
+    if(desde){qVentas+=`&created_at=gte.${desde}`;qCava+=`&created_at=gte.${desde}`;}
+    if(hasta){qVentas+=`&created_at=lte.${hasta}T23:59:59`;qCava+=`&created_at=lte.${hasta}T23:59:59`;}
+    const [ventas,despCava]=await Promise.all([
+      sbGet('ventas',qVentas),
+      sbGet('despachos_cava',qCava)
+    ]);
+
+    const filas=[
+      ...ventas.map(v=>({
+        fecha:(v.rutas&&v.rutas.fecha)||(v.created_at||'').slice(0,10),
+        cliente:v.cliente||'—',origen:'Ruta',
+        forma:v.forma_pago==='fiado'?'Fiado':(v.forma_pago==='transferencia'?'Transferencia':'Efectivo'),
+        monto:Number(v.precio||0),debe:Number(v.debe||0),
+        conductor:(v.rutas&&v.rutas.conductor)||'—'
+      })),
+      ...despCava.filter(d=>d.tipo!=='ruta').map(d=>({
+        fecha:d.fecha||(d.created_at||'').slice(0,10),
+        cliente:d.destino||'—',origen:'Planta',
+        forma:d.forma_pago==='fiado'?'Fiado':(d.forma_pago==='transferencia'?'Transferencia':'Efectivo'),
+        monto:Number(d.total||0),debe:(d.forma_pago==='fiado'&&!d.cobrado)?Number(d.total||0):0,
+        conductor:d.tipo||'—'
+      }))
+    ].sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
+
+    if(!filas.length){hideLoading();showToast('No hay ventas para exportar en este período.');return;}
+
+    const totalGeneral=filas.reduce((s,f)=>s+f.monto,0);
+    const totalContado=filas.filter(f=>f.forma!=='Fiado').reduce((s,f)=>s+f.monto,0);
+    const totalFiado=filas.filter(f=>f.forma==='Fiado').reduce((s,f)=>s+f.monto,0);
+    const totalRuta=filas.filter(f=>f.origen==='Ruta').reduce((s,f)=>s+f.monto,0);
+    const totalPlanta=filas.filter(f=>f.origen==='Planta').reduce((s,f)=>s+f.monto,0);
+    const totalEfectivo=filas.filter(f=>f.forma==='Efectivo').reduce((s,f)=>s+f.monto,0);
+    const totalTransf=filas.filter(f=>f.forma==='Transferencia').reduce((s,f)=>s+f.monto,0);
+
+    const P=_crearPDFDoc(jsPDF);
+    const {doc,margin,innerW,state,COL_CYAN,COL_SUCCESS,COL_WARN,COL_TEXT,fmtN,footer,sectionHeader,tableHeaderRow,tableRow,kpiBox,header}=P;
+
+    const periodoLabel=(desde||hasta)?`Período: ${desde||'inicio'} al ${hasta||'hoy'}`:'Período: todas las ventas registradas';
+    header('Facturación Detallada',`${periodoLabel}  ·  ${filas.length} venta(s)`);
+
+    sectionHeader('RESUMEN');
+    kpiBox([
+      ['Total facturado',fmtN(totalGeneral),COL_CYAN],
+      ['Contado',fmtN(totalContado),COL_SUCCESS],
+      ['Fiado',fmtN(totalFiado),COL_WARN],
+      ['Ventas de ruta',fmtN(totalRuta),COL_CYAN],
+      ['Ventas de planta',fmtN(totalPlanta),COL_CYAN],
+      ['Efectivo / Transferencia',fmtN(totalEfectivo)+' / '+fmtN(totalTransf),COL_SUCCESS]
+    ]);
+
+    sectionHeader('DETALLE DE VENTAS');
+    const cols=[
+      {label:'Fecha',w:20},{label:'Cliente',w:innerW-20-22-24-24-26-24},{label:'Origen',w:22},
+      {label:'Forma pago',w:24},{label:'Conductor/Canal',w:24},{label:'Debe',w:26,align:'right'},{label:'Monto',w:24,align:'right'}
+    ];
+    const widths=cols.map(c=>c.w);
+    const aligns=['left','left','left','left','left','right','right'];
+    tableHeaderRow(cols.map(c=>({label:c.label,align:c.align})),widths,margin);
+    filas.forEach((f,i)=>{
+      P.checkBreak(8);
+      tableRow([f.fecha,f.cliente,f.origen,f.forma,f.conductor,f.debe>0?fmtN(f.debe):'—',fmtN(f.monto)],widths,margin,{shade:i%2===1,aligns});
+    });
+    P.checkBreak(10);
+    tableRow(['TOTAL','','','','',fmtN(totalFiado),fmtN(totalGeneral)],widths,margin,{bold:true,color:COL_CYAN,aligns,shade:true});
+    footer();
+    doc.save(`facturacion_${desde||'todas'}_${hasta||'hoy'}.pdf`);
+    hideLoading();
+    showToast('✅ PDF generado');
+  }catch(e){hideLoading();showToast('Error al generar PDF: '+e.message);}
+}
+
 // ===== DASHBOARD — Vista general tiempo real =====
 function toggleCrProd(){
   const d=document.getElementById('cr-lista-produccion');
@@ -10880,12 +10964,12 @@ function _pct(actual,anterior){
 }
 async function _metricasPeriodoReporte(desde,hasta){
   const [ventas,despPlanta,cobros,gastosR,gastosP,gastosG]=await Promise.all([
-    sbGet('ventas','select='+VENTAS_COLS+',rutas!inner(fecha)&rutas.fecha=gte.'+desde+'&rutas.fecha=lte.'+hasta).catch(()=>[]),
-    sbGet('despachos_cava','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[]),
-    sbGet('cobros_cartera','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[]),
-    sbGet('gastos','select=valor,rutas!inner(fecha)&rutas.fecha=gte.'+desde+'&rutas.fecha=lte.'+hasta).catch(()=>[]),
-    sbGet('gastos_cava','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[]),
-    sbGet('gastos_gerenciales','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[])
+    sbGet('ventas','select='+VENTAS_COLS+',rutas!inner(fecha)&rutas.fecha=gte.'+desde+'&rutas.fecha=lte.'+hasta+'&limit=10000').catch(()=>[]),
+    sbGet('despachos_cava','fecha=gte.'+desde+'&fecha=lte.'+hasta+'&limit=10000').catch(()=>[]),
+    sbGet('cobros_cartera','fecha=gte.'+desde+'&fecha=lte.'+hasta+'&limit=10000').catch(()=>[]),
+    sbGet('gastos','select=valor,rutas!inner(fecha)&rutas.fecha=gte.'+desde+'&rutas.fecha=lte.'+hasta+'&limit=10000').catch(()=>[]),
+    sbGet('gastos_cava','fecha=gte.'+desde+'&fecha=lte.'+hasta+'&limit=10000').catch(()=>[]),
+    sbGet('gastos_gerenciales','fecha=gte.'+desde+'&fecha=lte.'+hasta+'&limit=10000').catch(()=>[])
   ]);
   const ventasPlanta=(despPlanta||[]).filter(d=>d.tipo!=='ruta');
   const totalVentas=(ventas||[]).reduce((s,v)=>s+Number(v.precio||0),0)+ventasPlanta.reduce((s,d)=>s+Number(d.total||0),0);
@@ -10988,14 +11072,17 @@ async function cargarReportes(){
   if(!desde||!hasta){showToast('Selecciona las fechas');return;}
   showLoading('Generando reporte...');
   try{
+    const _fallas=[];
+    const _q=(nombre,p)=>p.catch(e=>{_fallas.push(nombre);console.error('Reportes — '+nombre+':',e);return[];});
     const [ventas,despPlanta,cobros,gastosR,gastosP,gastosG]=await Promise.all([
-      sbGet('ventas','select='+VENTAS_COLS+',rutas!inner(fecha)&rutas.fecha=gte.'+desde+'&rutas.fecha=lte.'+hasta).catch(()=>[]),
-      sbGet('despachos_cava','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[]),
-      sbGet('cobros_cartera','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[]),
-      sbGet('gastos','select=valor,rutas!inner(fecha)&rutas.fecha=gte.'+desde+'&rutas.fecha=lte.'+hasta).catch(()=>[]),
-      sbGet('gastos_cava','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[]),
-      sbGet('gastos_gerenciales','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[])
+      _q('ventas',sbGet('ventas','select='+VENTAS_COLS+',rutas!inner(fecha)&rutas.fecha=gte.'+desde+'&rutas.fecha=lte.'+hasta+'&limit=10000')),
+      _q('despachos_cava',sbGet('despachos_cava','fecha=gte.'+desde+'&fecha=lte.'+hasta+'&limit=10000')),
+      _q('cobros_cartera',sbGet('cobros_cartera','fecha=gte.'+desde+'&fecha=lte.'+hasta+'&limit=10000')),
+      _q('gastos',sbGet('gastos','select=valor,rutas!inner(fecha)&rutas.fecha=gte.'+desde+'&rutas.fecha=lte.'+hasta+'&limit=10000')),
+      _q('gastos_cava',sbGet('gastos_cava','fecha=gte.'+desde+'&fecha=lte.'+hasta+'&limit=10000')),
+      _q('gastos_gerenciales',sbGet('gastos_gerenciales','fecha=gte.'+desde+'&fecha=lte.'+hasta+'&limit=10000'))
     ]);
+    if(_fallas.length){showToast('⚠️ No se pudo cargar: '+_fallas.join(', ')+'. Los totales pueden estar incompletos — intenta de nuevo.');}
     const ventasPlanta=(despPlanta||[]).filter(d=>d.tipo!=='ruta');
     // Nota: forma_pago vacío/nulo se trata como efectivo (mismo criterio usado en el resto de la app)
     const totalVentasRuta=(ventas||[]).reduce((s,v)=>s+Number(v.precio||0),0);
@@ -11045,14 +11132,17 @@ async function exportarInformeGerencialPDF(){
   showLoading('Generando informe gerencial...');
   try{
     const jsPDF=await _asegurarJsPDF();
+    const _fallasPDF=[];
+    const _qPDF=(nombre,p)=>p.catch(e=>{_fallasPDF.push(nombre);console.error('Informe PDF — '+nombre+':',e);return[];});
     const [ventasRuta,despachosPlanta,cobrosRuta,gastosRDet,gastosPDet,gastosGDet]=await Promise.all([
-      sbGet('ventas',`select=${VENTAS_COLS},rutas!inner(fecha,conductor)&rutas.fecha=gte.${desde}&rutas.fecha=lte.${hasta}`).catch(()=>[]),
-      sbGet('despachos_cava',`fecha=gte.${desde}&fecha=lte.${hasta}`).catch(()=>[]),
-      sbGet('cobros_cartera',`fecha=gte.${desde}&fecha=lte.${hasta}`).catch(()=>[]),
-      sbGet('gastos',`select=descripcion,valor,categoria,rutas!inner(fecha,conductor)&rutas.fecha=gte.${desde}&rutas.fecha=lte.${hasta}`).catch(()=>[]),
-      sbGet('gastos_cava',`fecha=gte.${desde}&fecha=lte.${hasta}`).catch(()=>[]),
-      sbGet('gastos_gerenciales',`fecha=gte.${desde}&fecha=lte.${hasta}`).catch(()=>[])
+      _qPDF('ventas',sbGet('ventas',`select=${VENTAS_COLS},rutas!inner(fecha,conductor)&rutas.fecha=gte.${desde}&rutas.fecha=lte.${hasta}&limit=10000`)),
+      _qPDF('despachos_cava',sbGet('despachos_cava',`fecha=gte.${desde}&fecha=lte.${hasta}&limit=10000`)),
+      _qPDF('cobros_cartera',sbGet('cobros_cartera',`fecha=gte.${desde}&fecha=lte.${hasta}&limit=10000`)),
+      _qPDF('gastos',sbGet('gastos',`select=descripcion,valor,categoria,rutas!inner(fecha,conductor)&rutas.fecha=gte.${desde}&rutas.fecha=lte.${hasta}&limit=10000`)),
+      _qPDF('gastos_cava',sbGet('gastos_cava',`fecha=gte.${desde}&fecha=lte.${hasta}&limit=10000`)),
+      _qPDF('gastos_gerenciales',sbGet('gastos_gerenciales',`fecha=gte.${desde}&fecha=lte.${hasta}&limit=10000`))
     ]);
+    if(_fallasPDF.length){showToast('⚠️ No se pudo cargar: '+_fallasPDF.join(', ')+'. El informe puede estar incompleto.');}
 
     // ── Ventas de Ruta ──
     const totalVentasRuta=ventasRuta.reduce((s,v)=>s+Number(v.precio||0),0);
