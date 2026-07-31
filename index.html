@@ -4625,7 +4625,10 @@ async function cargarGastosGlobal(){
     const todos=[
       ...gastosRuta.map(g=>({...g,_tipo:'ruta',_origen:g._origen})),
       ...gastosCava.map(g=>({...g,_tipo:'planta',_origen:g.responsable||'Planta'})),
-      ...gastosGer.map(g=>({...g,_tipo:'gerencial',_origen:g.responsable||'Gerencia'}))
+      // Los importados del histórico con responsable='RUTA-HIST' son gastos de Ruta, no Gerenciales
+      ...gastosGer.map(g=>g.responsable==='RUTA-HIST'
+        ?({...g,_tipo:'ruta',_origen:'Ruta (histórico)'})
+        :({...g,_tipo:'gerencial',_origen:g.responsable||'Gerencia'}))
     ];
 
     const total=todos.reduce((s,g)=>s+Number(g.valor),0);
@@ -4713,6 +4716,9 @@ async function cargarGastosRutaNav(){
       const g=await sbGet('gastos',`ruta_id=eq.${r.id}&select=*`).catch(()=>[]);
       g.forEach(x=>all.push({...x,_conductor:r.conductor,_fecha:r.fecha}));
     }
+    // Gastos históricos de Ruta importados (no ligados a una ruta puntual) — responsable='RUTA-HIST'
+    const histRuta=await sbGet('gastos_gerenciales',`fecha=gte.${mesInicio}&responsable=eq.RUTA-HIST`).catch(()=>[]);
+    histRuta.forEach(x=>all.push({...x,_conductor:'Histórico',_fecha:x.fecha}));
     const total=all.reduce((s,g)=>s+Number(g.valor),0);
     const totEl=document.getElementById('gn-ruta-total');if(totEl)totEl.textContent=fmt(total);
     const lista=document.getElementById('gn-ruta-lista');
@@ -4999,7 +5005,10 @@ async function registrarGastoGerencial(){
 async function cargarGastosGerenciales(){
   try{
     const mesInicio=fechaCorta().substring(0,7)+'-01';
-    const data=await sbGet('gastos_gerenciales',`fecha=gte.${mesInicio}&order=created_at.desc`).catch(()=>[]);
+    const dataAll=await sbGet('gastos_gerenciales',`fecha=gte.${mesInicio}&order=created_at.desc`).catch(()=>[]);
+    // Los gastos históricos importados con origen "Ruta" (responsable='RUTA-HIST') no son
+    // gastos gerenciales reales — se excluyen de este total/listado y se cuentan como Ruta.
+    const data=dataAll.filter(g=>g.responsable!=='RUTA-HIST');
     const total=data.reduce((s,g)=>s+Number(g.valor),0);
     // Para el screen antiguo (screen-gastos-gerenciales)
     const totEl=document.getElementById('gg-total');if(totEl)totEl.textContent=fmt(total);
@@ -10914,9 +10923,11 @@ async function cargarReportes(){
                 +ventasPlanta.filter(d=>d.forma_pago==='fiado').reduce((s,d)=>s+Number(d.total||0),0);
     const cobTot=(cobros||[]).reduce((s,c)=>s+Number(c.valor||c.monto||0),0)
                 +ventasPlanta.filter(d=>Number(d.abono_cava||0)>0).reduce((s,d)=>s+Number(d.abono_cava||0),0);
-    const gRuta=(gastosR||[]).reduce((s,g)=>s+Number(g.valor||g.monto||0),0);
+    // Gastos históricos importados con responsable='RUTA-HIST' son de Ruta, no Gerenciales
+    const gGerRutaHist=(gastosG||[]).filter(g=>g.responsable==='RUTA-HIST').reduce((s,g)=>s+Number(g.valor||0),0);
+    const gRuta=(gastosR||[]).reduce((s,g)=>s+Number(g.valor||g.monto||0),0)+gGerRutaHist;
     const gPlanta=(gastosP||[]).reduce((s,g)=>s+Number(g.valor||g.monto||0),0);
-    const gGer=(gastosG||[]).reduce((s,g)=>s+Number(g.valor||g.monto||0),0);
+    const gGer=(gastosG||[]).filter(g=>g.responsable!=='RUTA-HIST').reduce((s,g)=>s+Number(g.valor||g.monto||0),0);
     const totalGastos=gRuta+gPlanta+gGer;
     const ingEf=efectivo+transf+cobTot;
     const utilidad=ingEf-totalGastos;
@@ -10977,14 +10988,18 @@ async function exportarInformeGerencialPDF(){
     const fiadosPendTotal=fiRuta+fiPlanta;
 
     // ── Gastos detallados (concepto, categoría, responsable, fecha, monto) ──
+    // Los históricos importados con responsable='RUTA-HIST' son gastos de Ruta, no Gerenciales
+    const gastosGDetRuta=gastosGDet.filter(g=>g.responsable==='RUTA-HIST');
+    const gastosGDetReal=gastosGDet.filter(g=>g.responsable!=='RUTA-HIST');
     const filasGastos=[
       ...gastosRDet.map(g=>({fecha:g.rutas?.fecha||'—',concepto:g.descripcion||'—',categoria:CATS_LABEL[g.categoria||'sin_categoria']||g.categoria||'Sin cat.',responsable:g.rutas?.conductor||'—',tipo:'Ruta',valor:Number(g.valor||0)})),
+      ...gastosGDetRuta.map(g=>({fecha:g.fecha||'—',concepto:g.descripcion||'—',categoria:CATS_LABEL[g.categoria||'sin_categoria']||g.categoria||'Sin cat.',responsable:'Ruta (histórico)',tipo:'Ruta',valor:Number(g.valor||0)})),
       ...gastosPDet.map(g=>({fecha:g.fecha||'—',concepto:g.descripcion||'—',categoria:CATS_LABEL[g.categoria||'sin_categoria']||g.categoria||'Sin cat.',responsable:g.responsable||'Planta',tipo:'Planta',valor:Number(g.valor||0)})),
-      ...gastosGDet.map(g=>({fecha:g.fecha||'—',concepto:g.descripcion||'—',categoria:CATS_LABEL[g.categoria||'sin_categoria']||g.categoria||'Sin cat.',responsable:g.responsable||'Gerencia',tipo:'Gerencial',valor:Number(g.valor||0)}))
+      ...gastosGDetReal.map(g=>({fecha:g.fecha||'—',concepto:g.descripcion||'—',categoria:CATS_LABEL[g.categoria||'sin_categoria']||g.categoria||'Sin cat.',responsable:g.responsable||'Gerencia',tipo:'Gerencial',valor:Number(g.valor||0)}))
     ].sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
-    const gRutaTot=gastosRDet.reduce((s,g)=>s+Number(g.valor||0),0);
+    const gRutaTot=gastosRDet.reduce((s,g)=>s+Number(g.valor||0),0)+gastosGDetRuta.reduce((s,g)=>s+Number(g.valor||0),0);
     const gPlantaTot=gastosPDet.reduce((s,g)=>s+Number(g.valor||0),0);
-    const gGerTot=gastosGDet.reduce((s,g)=>s+Number(g.valor||0),0);
+    const gGerTot=gastosGDetReal.reduce((s,g)=>s+Number(g.valor||0),0);
     const totalGastos=gRutaTot+gPlantaTot+gGerTot;
 
     // ── Totales generales y utilidad ──
