@@ -1460,6 +1460,7 @@
       </div>
       <div id="gn-global-lista"><div class="empty" style="padding:14px 0;">Sin gastos.</div></div>
       <button class="btn btn-outline" onclick="exportarGastosPDF('global')" style="margin-top:10px;">📄 EXPORTAR PDF DETALLADO</button>
+      <button class="btn btn-outline" onclick="exportarGastosPDFFormatoOriginal()" style="margin-top:8px;">📊 EXPORTAR PDF (FORMATO EXCEL)</button>
     </div>
   </div>
 
@@ -5295,6 +5296,71 @@ async function exportarGastosPDF(scope){
     footer();
     const nombreArchivo=`gastos_${scope}_${fechaCorta()}.pdf`;
     doc.save(nombreArchivo);
+    hideLoading();
+    showToast('✅ PDF generado');
+  }catch(e){hideLoading();showToast('Error al generar PDF: '+e.message);}
+}
+
+// Deriva GASTO / INVERSION / PRESTAMOS a partir de la categoría/nota guardada
+function _derivarTipoGasto(g){
+  if(g.categoria==='inversion')return'INVERSION';
+  if(g.categoria==='prestamo_empleado'||g.categoria==='prestamo')return'PRESTAMOS';
+  if(g.nota&&g.nota.includes('[PRESTAMOS]'))return'PRESTAMOS';
+  if(g.nota&&g.nota.includes('[INVERSION]'))return'INVERSION';
+  return'GASTO';
+}
+
+// Exporta el PDF de gastos con el mismo formato de columnas que el Excel del usuario:
+// FECHA | VALOR | CATEGORIA | DESCRIPCION | GASTO-INVERSION | MODULO
+async function exportarGastosPDFFormatoOriginal(){
+  showLoading('Generando PDF...');
+  try{
+    const jsPDF=await _asegurarJsPDF();
+    const mesInicio=fechaCorta().substring(0,7)+'-01';
+    const mesLabel=new Date(fechaCorta()+'T00:00:00').toLocaleDateString('es-CO',{month:'long',year:'numeric'});
+
+    const [rutas,gastosCava,gastosGer]=await Promise.all([
+      sbGet('rutas',`fecha=gte.${mesInicio}&select=id,conductor,fecha`),
+      sbGet('gastos_cava',`fecha=gte.${mesInicio}`).catch(()=>[]),
+      sbGet('gastos_gerenciales',`fecha=gte.${mesInicio}`).catch(()=>[])
+    ]);
+    const gastosRuta=[];
+    for(const r of rutas){
+      const g=await sbGet('gastos',`ruta_id=eq.${r.id}&select=*`).catch(()=>[]);
+      g.forEach(x=>gastosRuta.push({...x,fecha:r.fecha}));
+    }
+
+    const filas=[
+      ...gastosRuta.map(g=>({fecha:g.fecha,valor:Number(g.valor||0),categoria:CATS_LABEL[g.categoria]||g.categoria||'Sin categoría',descripcion:g.descripcion||'—',tipo:_derivarTipoGasto(g),modulo:'RUTA'})),
+      ...gastosCava.map(g=>({fecha:g.fecha,valor:Number(g.valor||0),categoria:CATS_LABEL[g.categoria]||g.categoria||'Sin categoría',descripcion:g.descripcion||'—',tipo:_derivarTipoGasto(g),modulo:'PLANTA'})),
+      ...gastosGer.map(g=>({fecha:g.fecha,valor:Number(g.valor||0),categoria:CATS_LABEL[g.categoria]||g.categoria||'Sin categoría',descripcion:g.descripcion||'—',tipo:_derivarTipoGasto(g),modulo:'Gerencial'}))
+    ].sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
+
+    if(!filas.length){hideLoading();showToast('No hay gastos para exportar este mes.');return;}
+
+    const total=filas.reduce((s,f)=>s+f.valor,0);
+    const P=_crearPDFDoc(jsPDF);
+    const{doc,margin,innerW,state,COL_DANGER,fmtN,footer,sectionHeader,tableHeaderRow,tableRow,header}=P;
+
+    header('Estado de Resultados — Gastos',`Período: ${mesLabel}  ·  ${filas.length} gasto(s)`);
+
+    sectionHeader('DETALLE DE GASTOS');
+    const cols=[
+      {label:'Fecha',w:20},{label:'Valor',w:26,align:'right'},{label:'Categoría',w:34},
+      {label:'Descripción',w:innerW-20-26-34-30-24},{label:'Gasto-Inversión',w:30},{label:'Módulo',w:24}
+    ];
+    const widths=cols.map(c=>c.w);
+    const aligns=['left','right','left','left','left','left'];
+    tableHeaderRow(cols.map(c=>({label:c.label,align:c.align})),widths,margin);
+    filas.forEach((f,i)=>{
+      P.checkBreak(8);
+      tableRow([f.fecha,fmtN(f.valor),f.categoria,f.descripcion,f.tipo,f.modulo],widths,margin,{shade:i%2===1,aligns});
+    });
+    P.checkBreak(10);
+    tableRow(['TOTAL GASTOS',fmtN(total),'','','',''],widths,margin,{bold:true,color:COL_DANGER,aligns,shade:true});
+
+    footer();
+    doc.save(`gastos_${fechaCorta().substring(0,7)}.pdf`);
     hideLoading();
     showToast('✅ PDF generado');
   }catch(e){hideLoading();showToast('Error al generar PDF: '+e.message);}
