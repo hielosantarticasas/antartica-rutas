@@ -3366,6 +3366,14 @@ async function exportarDespachosPDF(){
       state.y+=8;
     });
 
+    P.checkBreak(40);
+    sectionHeader('TOTAL GENERAL DEL PERÍODO');
+    kpiBox([
+      ['Bolsas 20kg',String(totB20),COL_CYAN],
+      ['Bolsas 10kg',String(totB10),COL_CYAN],
+      ['Bolsas 3kg',String(totB3),COL_CYAN]
+    ]);
+
     footer();
     doc.save(`despachos_planta_${desde}_a_${hasta}.pdf`);
     hideLoading();
