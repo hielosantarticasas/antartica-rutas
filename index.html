@@ -3329,10 +3329,14 @@ async function exportarDespachosPDF(){
       const raligns=['left','left','right','right','right'];
       tableHeaderRow([{label:'Fecha'},{label:'Conductor'},{label:'20kg',align:'right'},{label:'10kg',align:'right'},{label:'3kg',align:'right'}],rw,margin);
       const ordenadosRuta=[...grupos.ruta].sort((a,b)=>(a.destino||'').localeCompare(b.destino||'')||String(a.fecha).localeCompare(String(b.fecha)));
+      let rutaB20=0,rutaB10=0,rutaB3=0;
       ordenadosRuta.forEach((d,i)=>{
+        rutaB20+=Number(d.b20||0);rutaB10+=Number(d.b10||0);rutaB3+=Number(d.b3||0);
         P.checkBreak(8);
         tableRow([d.fecha||'—',d.destino||'—',String(d.b20||0),String(d.b10||0),String(d.b3||0)],rw,margin,{shade:i%2===1,aligns:raligns});
       });
+      P.checkBreak(8);
+      tableRow(['','TOTAL',String(rutaB20),String(rutaB10),String(rutaB3)],rw,margin,{bold:true,color:COL_CYAN,aligns:raligns});
       state.y+=8;
     }
 
@@ -3347,16 +3351,18 @@ async function exportarDespachosPDF(){
       const valigns=['left','left','left','left','left','right'];
       tableHeaderRow([{label:'Fecha'},{label:'Cliente'},{label:'Bolsas'},{label:'Forma pago'},{label:'Vendedor'},{label:'Monto',align:'right'}],vw2,margin);
       const ordenados=[...rows].sort((a,b)=>(a.destino||'').localeCompare(b.destino||'')||String(a.fecha).localeCompare(String(b.fecha)));
-      let subtotal=0;
+      let subtotal=0,secB20=0,secB10=0,secB3=0;
       ordenados.forEach((d,i)=>{
         const det=[d.b20>0?`${d.b20}×20`:'',d.b10>0?`${d.b10}×10`:'',d.b3>0?`${d.b3}×3`:''].filter(Boolean).join(' ');
         const fp=d.forma_pago==='fiado'?'Fiado':(d.forma_pago==='transferencia'?'Transf.':'Efectivo');
         subtotal+=Number(d.total||0);
+        secB20+=Number(d.b20||0);secB10+=Number(d.b10||0);secB3+=Number(d.b3||0);
         P.checkBreak(8);
         tableRow([d.fecha||'—',d.destino||'—',det,fp,d.vendedor_asignado||'—',fmtN(d.total||0)],vw2,margin,{shade:i%2===1,aligns:valigns});
       });
       P.checkBreak(8);
-      tableRow(['','','','','TOTAL',fmtN(subtotal)],vw2,margin,{bold:true,color:COL_CYAN,aligns:valigns});
+      const detTotal=[secB20>0?`${secB20}×20`:'',secB10>0?`${secB10}×10`:'',secB3>0?`${secB3}×3`:''].filter(Boolean).join(' ');
+      tableRow(['','TOTAL',detTotal,'','',fmtN(subtotal)],vw2,margin,{bold:true,color:COL_CYAN,aligns:valigns});
       state.y+=8;
     });
 
