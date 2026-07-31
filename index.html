@@ -2048,9 +2048,17 @@
     </div>
     <div class="card">
       <div class="card-title">DESPACHOS DE HOY</div>
-      <div class="card-title">DESPACHOS DE HOY</div>
       <input type="text" id="filtro-despacho" placeholder="🔍 Buscar cliente..." oninput="filtrarDespachos(this.value)" style="margin-bottom:10px;">
       <div id="lista-despachos"><div class="empty"><div class="empty-icon">📦</div>Sin despachos hoy.</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📄 EXPORTAR HISTORIAL DE DESPACHOS</div>
+      <p style="font-size:12px;color:var(--text-light);margin-bottom:10px;">Incluye traslados a ruta, venta puerta, revendedor y vendedor de zona — detallado por cliente/conductor.</p>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <div style="flex:1;"><label>Desde</label><input type="date" id="desp-pdf-desde" style="margin-bottom:0;"></div>
+        <div style="flex:1;"><label>Hasta</label><input type="date" id="desp-pdf-hasta" style="margin-bottom:0;"></div>
+      </div>
+      <button class="btn btn-outline" onclick="exportarDespachosPDF()" style="width:100%;">📄 EXPORTAR PDF DETALLADO</button>
     </div>
   </div>
 
@@ -3028,7 +3036,12 @@ function switchCava(tab){
   const btn=document.getElementById(tab.replace('ctab-','ctab-btn-'));if(btn)btn.classList.add('active');
   if(tab==='ctab-turno')cargarTurnos();
   if(tab==='ctab-prod'){cargarProduccion();cargarReprocesosHoy();cargarTransformacionesHoy();}
-  if(tab==='ctab-desp'){cargarDespachos();const fe=document.getElementById('cav-fecha');if(fe&&!fe.value)fe.value=fechaCorta();}
+  if(tab==='ctab-desp'){
+    cargarDespachos();
+    const fe=document.getElementById('cav-fecha');if(fe&&!fe.value)fe.value=fechaCorta();
+    const pd=document.getElementById('desp-pdf-desde');if(pd&&!pd.value)pd.value=fechaCorta().substring(0,7)+'-01';
+    const ph=document.getElementById('desp-pdf-hasta');if(ph&&!ph.value)ph.value=fechaCorta();
+  }
   if(tab==='ctab-cartera')cargarCavaCartera();
   if(tab==='ctab-gastos')cargarGastosCava();
   if(tab==='ctab-resumen')cargarResumenCava();
@@ -3268,6 +3281,91 @@ function renderDespachos(data){
   }).join('');
 }
 
+// ===== EXPORTAR PDF — HISTORIAL DE DESPACHOS DE PLANTA =====
+// Incluye traslados a ruta (por conductor) y ventas puerta/revendedor/vendedor (por cliente)
+async function exportarDespachosPDF(){
+  showLoading('Generando PDF...');
+  try{
+    const jsPDF=await _asegurarJsPDF();
+    const mesInicio=fechaCorta().substring(0,7)+'-01';
+    const desdeEl=document.getElementById('desp-pdf-desde');
+    const hastaEl=document.getElementById('desp-pdf-hasta');
+    const desde=(desdeEl&&desdeEl.value)||mesInicio;
+    const hasta=(hastaEl&&hastaEl.value)||fechaCorta();
+    const data=await sbGetAll('despachos_cava',`fecha=gte.${desde}&fecha=lte.${hasta}&order=fecha.asc,created_at.asc`);
+    if(!data.length){hideLoading();showToast('No hay despachos en este período.');return;}
+
+    const grupos={ruta:[],puerta:[],revendedor:[],vendedor:[]};
+    data.forEach(d=>{(grupos[d.tipo]||grupos.puerta).push(d);});
+
+    const totalDespachos=data.length;
+    const totB20=data.reduce((s,d)=>s+(d.b20||0),0);
+    const totB10=data.reduce((s,d)=>s+(d.b10||0),0);
+    const totB3=data.reduce((s,d)=>s+(d.b3||0),0);
+    const ventasTipos=['puerta','revendedor','vendedor'];
+    const totalFacturado=data.filter(d=>ventasTipos.includes(d.tipo)).reduce((s,d)=>s+Number(d.total||0),0);
+    const totalFiado=data.filter(d=>ventasTipos.includes(d.tipo)&&d.forma_pago==='fiado').reduce((s,d)=>s+Number(d.total||0),0);
+
+    const P=_crearPDFDoc(jsPDF);
+    const {doc,margin,innerW,state,COL_CYAN,COL_SUCCESS,COL_WARN,fmtN,footer,sectionHeader,tableHeaderRow,tableRow,kpiBox,header}=P;
+
+    header('Historial de Despachos — Planta',`Período: ${desde} al ${hasta}  ·  ${totalDespachos} despacho(s)`);
+
+    sectionHeader('RESUMEN');
+    kpiBox([
+      ['Total despachos',String(totalDespachos),COL_CYAN],
+      ['Bolsas 20kg',String(totB20),COL_CYAN],
+      ['Bolsas 10kg',String(totB10),COL_CYAN],
+      ['Bolsas 3kg',String(totB3),COL_CYAN],
+      ['Total facturado (ventas)',fmtN(totalFacturado),COL_SUCCESS],
+      ['Fiado (ventas)',fmtN(totalFiado),COL_WARN]
+    ]);
+
+    // TRASLADOS A RUTA — detallado por conductor
+    if(grupos.ruta.length){
+      P.checkBreak(30);
+      sectionHeader('🚛 TRASLADOS A RUTA (por conductor)');
+      const rw=[24,innerW-24-26-26-26,26,26,26];
+      const raligns=['left','left','right','right','right'];
+      tableHeaderRow([{label:'Fecha'},{label:'Conductor'},{label:'20kg',align:'right'},{label:'10kg',align:'right'},{label:'3kg',align:'right'}],rw,margin);
+      const ordenadosRuta=[...grupos.ruta].sort((a,b)=>(a.destino||'').localeCompare(b.destino||'')||String(a.fecha).localeCompare(String(b.fecha)));
+      ordenadosRuta.forEach((d,i)=>{
+        P.checkBreak(8);
+        tableRow([d.fecha||'—',d.destino||'—',String(d.b20||0),String(d.b10||0),String(d.b3||0)],rw,margin,{shade:i%2===1,aligns:raligns});
+      });
+      state.y+=8;
+    }
+
+    // VENTAS — puerta / revendedor / vendedor, detallado por cliente
+    const seccionesVenta=[['puerta','🚪 VENTA PUERTA (por cliente)'],['revendedor','🚲 REVENDEDORES (por cliente)'],['vendedor','🧑‍💼 VENDEDORES DE ZONA (por cliente)']];
+    seccionesVenta.forEach(([key,titulo])=>{
+      const rows=grupos[key];
+      if(!rows.length)return;
+      P.checkBreak(30);
+      sectionHeader(titulo);
+      const vw2=[18,innerW-18-24-26-24-30,24,26,24,30];
+      const valigns=['left','left','left','left','left','right'];
+      tableHeaderRow([{label:'Fecha'},{label:'Cliente'},{label:'Bolsas'},{label:'Forma pago'},{label:'Vendedor'},{label:'Monto',align:'right'}],vw2,margin);
+      const ordenados=[...rows].sort((a,b)=>(a.destino||'').localeCompare(b.destino||'')||String(a.fecha).localeCompare(String(b.fecha)));
+      let subtotal=0;
+      ordenados.forEach((d,i)=>{
+        const det=[d.b20>0?`${d.b20}×20`:'',d.b10>0?`${d.b10}×10`:'',d.b3>0?`${d.b3}×3`:''].filter(Boolean).join(' ');
+        const fp=d.forma_pago==='fiado'?'Fiado':(d.forma_pago==='transferencia'?'Transf.':'Efectivo');
+        subtotal+=Number(d.total||0);
+        P.checkBreak(8);
+        tableRow([d.fecha||'—',d.destino||'—',det,fp,d.vendedor_asignado||'—',fmtN(d.total||0)],vw2,margin,{shade:i%2===1,aligns:valigns});
+      });
+      P.checkBreak(8);
+      tableRow(['','','','','TOTAL',fmtN(subtotal)],vw2,margin,{bold:true,color:COL_CYAN,aligns:valigns});
+      state.y+=8;
+    });
+
+    footer();
+    doc.save(`despachos_planta_${desde}_a_${hasta}.pdf`);
+    hideLoading();
+    showToast('✅ PDF generado');
+  }catch(e){hideLoading();showToast('Error al generar PDF: '+e.message);}
+}
 
 async function editarDespacho(id){
   const clave=prompt('🔐 Contraseña para editar:');
