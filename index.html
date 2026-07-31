@@ -1027,9 +1027,9 @@
   </div>
   <!-- Filtro ruta vs planta -->
   <div style="display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;">
-    <button class="tab active" id="ctab-ruta" onclick="filtrarCartera('ruta')" style="flex:1;min-width:fit-content;">🚛 Ruta</button>
+    <button class="tab" id="ctab-ruta" onclick="filtrarCartera('ruta')" style="flex:1;min-width:fit-content;">🚛 Ruta</button>
     <button class="tab" id="ctab-cava" onclick="filtrarCartera('cava')" style="flex:1;min-width:fit-content;">🌿 Planta</button>
-    <button class="tab" id="ctab-todas" onclick="filtrarCartera('todas')" style="flex:1;min-width:fit-content;">📋 Todas</button>
+    <button class="tab active" id="ctab-todas" onclick="filtrarCartera('todas')" style="flex:1;min-width:fit-content;">📋 Todas</button>
     <button class="tab" id="ctab-historial" onclick="filtrarCartera('historial')" style="flex:1;min-width:fit-content;">📅 Historial</button>
   </div>
   <button id="btn-estado-cuenta" onclick="abrirEstadoCuentaCliente()" style="width:100%;background:rgba(107,79,187,.1);border:1px solid rgba(107,79,187,.3);color:var(--transfer);border-radius:10px;padding:11px 14px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:8px;">🧾 Estado de cuenta por cliente</button>
@@ -7193,7 +7193,7 @@ async function cargarResumenMes(){
     document.getElementById('hist-mes').style.display='block';
   }catch(e){hideLoading();alert('Error: '+e.message);}
 }
-let filtroCartera='ruta'; // 'ruta' | 'cava' | 'todas'
+let filtroCartera='todas'; // 'ruta' | 'cava' | 'todas'
 
 let _carteraCache={ventas:[],despCava:[]};
 
@@ -7334,7 +7334,7 @@ function abrirEstadoCuentaCliente(){
 }
 function cerrarEstadoCuentaCliente(){
   const estadoEl=document.getElementById('cartera-estado-cuenta');if(estadoEl)estadoEl.style.display='none';
-  filtrarCartera(filtroCartera&&filtroCartera!=='historial'?filtroCartera:'ruta');
+  filtrarCartera(filtroCartera&&filtroCartera!=='historial'?filtroCartera:'todas');
 }
 function buscarEstadoCuentaCliente(texto){
   clearTimeout(_estadoCuentaBuscarTimeout);
