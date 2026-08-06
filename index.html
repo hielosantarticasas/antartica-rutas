@@ -1000,7 +1000,10 @@
 <div class="screen" id="screen-cartera">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0;">
     <div class="section-title" style="margin-bottom:0;">CARTERA GLOBAL</div>
-    <button onclick="exportarCarteraPDF()" style="background:rgba(0,153,204,.1);border:1px solid rgba(0,153,204,.3);color:var(--cyan);border-radius:8px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;">📄 Exportar PDF</button>
+    <div style="display:flex;gap:6px;">
+      <button onclick="exportarCarteraPDF()" style="background:rgba(0,153,204,.1);border:1px solid rgba(0,153,204,.3);color:var(--cyan);border-radius:8px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;">📄 PDF</button>
+      <button onclick="exportarCarteraExcel()" style="background:rgba(0,150,110,.1);border:1px solid rgba(0,150,110,.3);color:var(--success);border-radius:8px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;">📊 Excel</button>
+    </div>
   </div>
   <div class="section-sub">Fiados pendientes de ruta y cava</div>
   <div class="total-cartera-box">
@@ -7818,6 +7821,52 @@ async function exportarCarteraPDF(){
     doc.save(`Cartera_Antartica_${fechaCorta()}.pdf`);
     showToast('✅ PDF generado');
   }catch(e){hideLoading();showToast('Error PDF: '+e.message);}
+}
+
+// ─── EXPORTAR CARTERA A EXCEL (Fecha - Cliente - Monto - Conductor) ─
+async function _asegurarXLSXlib(){
+  if(!window.XLSX){
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload=res;s.onerror=rej;document.head.appendChild(s);
+    });
+  }
+  if(!window.XLSX)throw new Error('Librería de Excel no disponible');
+  return window.XLSX;
+}
+async function exportarCarteraExcel(){
+  showLoading('Generando Excel...');
+  try{
+    const XLSX=await _asegurarXLSXlib();
+    // Respeta el filtro activo en pantalla (ruta / planta / todas)
+    const incluirRuta=filtroCartera==='ruta'||filtroCartera==='todas';
+    const incluirCava=filtroCartera==='cava'||filtroCartera==='todas';
+    const ventas=incluirRuta?await sbGet('ventas',`forma_pago=eq.fiado&cobrado=eq.false&select=${VENTAS_COLS},rutas(conductor,fecha)&order=cliente.asc`).catch(()=>[]):[];
+    const desps=incluirCava?await sbGet('despachos_cava',`forma_pago=eq.fiado&cobrado=eq.false&select=*&order=destino.asc`).catch(()=>[]):[];
+    hideLoading();
+
+    // Planta no tiene "conductor" — se usa el canal de venta como referencia
+    const tipoLabel={puerta:'Planta — Puerta',revendedor:'Planta — Revendedor',vendedor:'Planta — Vendedor'};
+    const filas=[
+      ...ventas.map(v=>({Fecha:(v.rutas&&v.rutas.fecha)||'—',Cliente:v.cliente||'—',Monto:Number(v.debe||0),Conductor:(v.rutas&&v.rutas.conductor)||'—'})),
+      ...desps.filter(d=>['puerta','revendedor','vendedor'].includes(d.tipo)).map(d=>({Fecha:d.fecha||'—',Cliente:d.destino||'—',Monto:Number(d.total||0),Conductor:tipoLabel[d.tipo]||d.tipo||'—'}))
+    ].sort((a,b)=>String(a.Fecha).localeCompare(String(b.Fecha)));
+
+    if(!filas.length){showToast('No hay fiados pendientes para exportar.');return;}
+
+    const totalGeneral=filas.reduce((s,f)=>s+f.Monto,0);
+    filas.push({Fecha:'',Cliente:'',Monto:'',Conductor:''});
+    filas.push({Fecha:'',Cliente:'TOTAL',Monto:totalGeneral,Conductor:''});
+
+    const ws=XLSX.utils.json_to_sheet(filas,{header:['Fecha','Cliente','Monto','Conductor']});
+    ws['!cols']=[{wch:12},{wch:28},{wch:14},{wch:26}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Cartera');
+    const tituloFiltro=filtroCartera==='ruta'?'ruta':filtroCartera==='cava'?'planta':'todas';
+    XLSX.writeFile(wb,`cartera_${tituloFiltro}_${fechaCorta()}.xlsx`);
+    showToast('✅ Excel generado');
+  }catch(e){hideLoading();showToast('Error al generar Excel: '+e.message);}
 }
 
 // ─── ANTIGÜEDAD DE CARTERA (aging) ──────────────────────────
